@@ -43,6 +43,29 @@ private:
     void PopLocal(const Function* function, uSys localHead, u16 local) noexcept;
     void PushArgument(uSys argument) noexcept;
     void PopArgument(uSys argument) noexcept;
+    void DuplicateVal(uSys byteCount) noexcept;
+
+    template<typename T>
+    void PushValue(const T value) noexcept
+    {
+        (void) ::std::memcpy(m_Stack.arr() + m_StackPointer, &value, sizeof(T));
+        m_StackPointer += sizeof(T);
+    }
+
+    template<typename T>
+    T PopValue() noexcept
+    {
+        T ret;
+        m_StackPointer -= sizeof(T);
+        (void) ::std::memcpy(&ret, m_Stack.arr() + m_StackPointer, sizeof(T));
+        return ret;
+    }
+
+    template<typename TRead, typename TWrite>
+    void ResizeVal() noexcept
+    {
+        PushValue<TWrite>(static_cast<TWrite>(PopValue<TRead>()));
+    }
 private:
     ModuleList m_Modules;
     DynArray<u8> m_Stack;

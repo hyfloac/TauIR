@@ -34,11 +34,27 @@ void Function::LoadLocalOffsets() noexcept
         return;
     }
 
-    uSys currentOffset = m_LocalTypes[0]->Size();
+    uSys currentOffset;
+
+    if(TypeInfo::IsPointer(m_LocalTypes[0]))
+    {
+        currentOffset = sizeof(void*);
+    }
+    else
+    {
+        currentOffset = TypeInfo::StripPointer(m_LocalTypes[0])->Size();
+    }
     for(uSys i = 1; i < m_LocalTypes.count(); ++i)
     {
         m_LocalOffsets[i - 1] = currentOffset;
-        currentOffset += m_LocalTypes[i]->Size();
+        if(TypeInfo::IsPointer(m_LocalTypes[i]))
+        {
+            currentOffset += TypeInfo::StripPointer(m_LocalTypes[i])->Size();
+        }
+        else
+        {
+            currentOffset += sizeof(void*);
+        }
     }
 
     m_LocalSize = currentOffset;

@@ -4,7 +4,7 @@
 
 namespace tau::ir {
 
-static thread_local FixedBlockAllocator<> g_allocator(sizeof(TypeInfo));
+static thread_local FixedBlockAllocator<> g_allocator(_alignTo(sizeof(TypeInfo), 8));
 
 void* TypeInfo::operator new(const ::std::size_t sz) noexcept
 {

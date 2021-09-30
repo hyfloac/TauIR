@@ -36,6 +36,46 @@ public:
 public:
     void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
+
+    [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept
+    {
+        const uPtr address = reinterpret_cast<uPtr>(typeInfo);
+        return address & 1;
+    }
+
+    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo)
+    {
+        const uPtr address = reinterpret_cast<uPtr>(typeInfo) & ~7;
+        return reinterpret_cast<const TypeInfo*>(address);
+    }
+
+    [[nodiscard]] static TypeInfo* StripPointer(TypeInfo* typeInfo)
+    {
+        const uPtr address = reinterpret_cast<uPtr>(typeInfo) & ~7;
+        return reinterpret_cast<TypeInfo*>(address);
+    }
+
+    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo)
+    {
+        const uPtr address = reinterpret_cast<uPtr>(typeInfo) | 1;
+        return reinterpret_cast<const TypeInfo*>(address);
+    }
+
+    [[nodiscard]] static TypeInfo* AddPointer(TypeInfo* typeInfo)
+    {
+        const uPtr address = reinterpret_cast<uPtr>(typeInfo) | 1;
+        return reinterpret_cast<TypeInfo*>(address);
+    }
+
+    [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo, const bool isPointer)
+    {
+        return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
+    }
+
+    [[nodiscard]] static TypeInfo* SetPointer(TypeInfo* typeInfo, const bool isPointer)
+    {
+        return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
+    }
 private:
     static uSys GenerateId() noexcept;
 private:
@@ -45,7 +85,6 @@ private:
 };
 
 }
-
 
 static bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {
