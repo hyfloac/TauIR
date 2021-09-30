@@ -48,7 +48,7 @@ workspace "TauIR"
     project "TauIRLib"
         kind "StaticLib"
         language "C++"
-        toolset = "clang"
+        toolset "clang"
         location "TauIRLib"
 
         files { 
@@ -63,3 +63,33 @@ workspace "TauIR"
             "%{prj.location}/include",
             "%{wks.location}/libs/TauUtils/include"
         }
+
+    project "TauIRTest"
+        kind "ConsoleApp"
+        language "C++"
+        toolset "clang"
+        location "TauIRTest"
+
+        files { 
+            "%{prj.location}/**.h", 
+            "%{prj.location}/**.hpp", 
+            "%{prj.location}/src/**.c", 
+            "%{prj.location}/src/**.cpp" 
+        }
+
+        includedirs {
+            "%{prj.location}/include",
+            "%{wks.location}/libs/TauUtils/include",
+            "%{wks.location}/TauIRLib/include"
+        }
+
+        libdirs {
+            "%{cfg.outdir}",
+            "%{wks.location}/libs/TauUtils/bin/%{cfg.shortname}-%{_arch}"
+        }
+
+        links {
+            "TauUtils.lib",
+            "TauIRLib.lib"
+        }
+

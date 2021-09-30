@@ -1,7 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
+VisualStudioVersion = 16.0.31624.102
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TauIRLib", "TauIRLib\TauIRLib.vcxproj", "{A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TauIRTest", "TauIRTest\TauIRTest.vcxproj", "{6A48858E-D6B2-3905-1FF1-EAAA8B9A175A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB} = {A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,8 +20,15 @@ Global
 		{A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB}.Debug|Win64.Build.0 = Debug Win64|x64
 		{A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB}.Release|Win64.ActiveCfg = Release Win64|x64
 		{A1FF6042-8DCC-BB4D-B6E5-A9F5A211F1DB}.Release|Win64.Build.0 = Release Win64|x64
+		{6A48858E-D6B2-3905-1FF1-EAAA8B9A175A}.Debug|Win64.ActiveCfg = Debug Win64|x64
+		{6A48858E-D6B2-3905-1FF1-EAAA8B9A175A}.Debug|Win64.Build.0 = Debug Win64|x64
+		{6A48858E-D6B2-3905-1FF1-EAAA8B9A175A}.Release|Win64.ActiveCfg = Release Win64|x64
+		{6A48858E-D6B2-3905-1FF1-EAAA8B9A175A}.Release|Win64.Build.0 = Release Win64|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {72E2460B-F0B2-47EC-BE26-CE38E09C8160}
 	EndGlobalSection
 EndGlobal
