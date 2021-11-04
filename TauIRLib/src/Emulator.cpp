@@ -28,12 +28,12 @@ void Emulator::Execute() noexcept
 
     const Function* const entryPoint = mainModule->Functions()[0];
 
-    ExecuteFunction(entryPoint);
+    ExecuteFunction(entryPoint, mainModule.get());
 }
 
-void Emulator::ExecuteFunction(const Function* function) noexcept
+void Emulator::ExecuteFunction(const Function* const function, const Module* const module) noexcept
 {
-    const u8* codePtr = reinterpret_cast<const u8*>(reinterpret_cast<const void*>(function->Address()));
+    const u8* codePtr = reinterpret_cast<const u8*>(function->Address());
 
     // Unused while emulating.
     // const uPtr prevFunctionPtr = *(reinterpret_cast<const uPtr*>(m_Stack.arr() + m_StackPointer) - 1);
@@ -41,13 +41,13 @@ void Emulator::ExecuteFunction(const Function* function) noexcept
     const uSys localsHead = m_StackPointer;
     m_StackPointer += function->LocalSize();
 
-#if 1
+#if 0
     for(uSys i = 0; i <  function->LocalSize(); ++i)
     {
         m_Stack[localsHead + i] = static_cast<u8>(i);
     }
 #endif
-
+    
     while(true)
     {
         u16 opcodeRaw = *codePtr;
@@ -65,6 +65,7 @@ void Emulator::ExecuteFunction(const Function* function) noexcept
 
         if(opcode == Opcode::Ret)
         {
+            (void) PopValue<u32>();
             break;
         }
 
@@ -435,6 +436,32 @@ void Emulator::ExecuteFunction(const Function* function) noexcept
                 const i64 remainder = a % b;
                 PushValue<i64>(quotient);
                 PushValue<i64>(remainder);
+                break;
+            }
+            case Opcode::Call:
+            {
+                const u32 functionIndex = *reinterpret_cast<const u32*>(codePtr);
+                codePtr += 4;
+
+                PushValue(reinterpret_cast<uSys>(codePtr));
+                ExecuteFunction(module->Functions()[functionIndex], module);
+                break;
+            }
+            case Opcode::CallExt:
+            {
+                const u32 functionIndex = *reinterpret_cast<const u32*>(codePtr);
+                codePtr += 4;
+                const u16 moduleIndex = *reinterpret_cast<const u16*>(codePtr);
+                codePtr += 2;
+
+                PushValue(reinterpret_cast<uSys>(codePtr));
+                const Module* const targetModule = m_Modules[moduleIndex].get();
+
+                ExecuteFunction(targetModule->Functions()[functionIndex], targetModule);
+                break;
+            }
+            case Opcode::CallInd:
+            {
                 break;
             }
             default:

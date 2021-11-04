@@ -60,7 +60,7 @@ enum class Opcode : u16
     Trunc42          = 0x002D,
     Trunc41          = 0x002E,
     Trunc21          = 0x002F,
-    Load             = 0x001A,
+    Load             = 0x001B,
     LoadGlobal       = 0x901A,
     LoadGlobalExt    = 0x901B,
     Store            = 0x002A,
@@ -82,7 +82,10 @@ enum class Opcode : u16
     MulI64           = 0x0039,
     DivI32           = 0x003A,
     DivI64           = 0x003B,
-    Ret = 0x9999 //tmp
+    Call             = 0x001C,
+    CallExt          = 0x801C,
+    CallInd          = 0x801D,
+    Ret              = 0x001D
 };
 
 }

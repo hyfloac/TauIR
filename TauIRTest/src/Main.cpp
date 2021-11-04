@@ -1,5 +1,3 @@
-#include <allocator/PageAllocator.hpp>
-
 #include "TauIR/Function.hpp"
 #include "TauIR/Emulator.hpp"
 #include "TauIR/Module.hpp"
@@ -17,11 +15,7 @@ int main(int argCount, char* args[])
         0x12,                   // Push.2
         0x00,                   // Nop
         0x40,                   // Pop.Arg.0
-        0x99, 0x99,             // Ret
-        0x00,                   // Nop
-        0x00,                   // Nop
-        0x00,                   // Nop
-        0x00                    // Nop
+        0x1D                    // Ret
     };
 
     i32 subVal = 83;
@@ -41,11 +35,7 @@ int main(int argCount, char* args[])
         0x36,                               // Sub.i32
         0x29,                               // Expand.SX.4.8
         0x40,                               // Pop.Arg.0
-        0x99, 0x99,                         // Ret
-        0x00,                               // Nop
-        0x00,                               // Nop
-        0x00,                               // Nop
-        0x00                                // Nop
+        0x1D                                // Ret
     };
 
     // Expect 0
@@ -56,7 +46,30 @@ int main(int argCount, char* args[])
         // 0xA0, 0x26, 0x04, 0x00,             // Pop.Count 4
         0x29,                               // Expand.SX.4.8
         0x40,                               // Pop.Arg.0
-        0x99, 0x99,                         // Ret
+        0x1D,                               // Ret
+    };
+
+    u8 codeSquare[] = {
+        0x30,   // Push.Arg.0
+        0x30,   // Push.Arg.0
+        0x39,   // Mul.i64
+        0x40,   // Pop.Arg.0
+        0x1D    // Ret
+    };
+
+    // Expect 259
+    u8 codeMain[] = {
+        0x8B, 0x00, 0x10, 0x00, 0x00, 0x00, // Const.N 16
+        0x29,                               // Expand.SX.4.8
+        0x40,                               // Pop.Arg.0
+        0x1C, 0x01, 0x00, 0x00, 0x00,       // Call <codeSquare>
+        0x17,                               // Const.3
+        0x30,                               // Push.Arg.0
+        0x2A,                               // Trunc.8.4
+        0x34,                               // Add.i32
+        0x29,                               // Expand.SX.4.8
+        0x40,                               // Pop.Arg.0
+        0x1D                                // Ret
     };
 
     using TypeInfo = tau::ir::TypeInfo;
@@ -81,17 +94,25 @@ int main(int argCount, char* args[])
     entryTypes[0] = TypeInfo::AddPointer(intType);
 
     DynArray<const Function*> functions(2);
-    functions[0] = new Function(reinterpret_cast<uPtr>(codeDiv), ::std::move(entryTypes));
-    functions[1] = new Function(reinterpret_cast<uPtr>(code), ::std::move(types));
+    functions[0] = new Function(reinterpret_cast<uPtr>(codeMain), DynArray<const TypeInfo*>());
+    functions[1] = new Function(reinterpret_cast<uPtr>(codeSquare), DynArray<const TypeInfo*>());
     
     ::std::vector<Ref<Module>> modules(1);
-    modules[0] = Ref<Module>(::std::move(functions));
+    modules[0].reset(::std::move(functions));
 
     tau::ir::Emulator emulator(::std::move(modules));
 
     emulator.Execute();
-    
-    printf("Return Val: %llu (%lld) [0x%llX]\n", emulator.ReturnVal(), emulator.ReturnVal(), emulator.ReturnVal());
 
-    return static_cast<int>(emulator.ReturnVal());
+    const u64 retVal = emulator.ReturnVal();
+
+    printf("Return Val: %llu (%lld) [0x%llX]\n", retVal, retVal, retVal);
+
+    delete intType;
+    delete byteType;
+    delete floatType;
+    delete doubleType;
+    delete pointerType;
+
+    return static_cast<int>(retVal);
 }

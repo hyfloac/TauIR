@@ -10,6 +10,20 @@ class TypeInfo final
     DEFAULT_DESTRUCT(TypeInfo);
     DEFAULT_CM_PU(TypeInfo);
 public:
+    static const TypeInfo Void;
+    static const TypeInfo Bool;
+    static const TypeInfo I8;
+    static const TypeInfo I16;
+    static const TypeInfo I32;
+    static const TypeInfo I64;
+    static const TypeInfo U8;
+    static const TypeInfo U16;
+    static const TypeInfo U32;
+    static const TypeInfo U64;
+    static const TypeInfo F32;
+    static const TypeInfo F64;
+    static const TypeInfo Char;
+public:
     TypeInfo(const uSys size, const DynString& name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
@@ -37,45 +51,16 @@ public:
     void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
 
-    [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept
-    {
-        const uPtr address = reinterpret_cast<uPtr>(typeInfo);
-        return address & 1;
-    }
-
-    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo)
-    {
-        const uPtr address = reinterpret_cast<uPtr>(typeInfo) & ~7;
-        return reinterpret_cast<const TypeInfo*>(address);
-    }
-
-    [[nodiscard]] static TypeInfo* StripPointer(TypeInfo* typeInfo)
-    {
-        const uPtr address = reinterpret_cast<uPtr>(typeInfo) & ~7;
-        return reinterpret_cast<TypeInfo*>(address);
-    }
-
-    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo)
-    {
-        const uPtr address = reinterpret_cast<uPtr>(typeInfo) | 1;
-        return reinterpret_cast<const TypeInfo*>(address);
-    }
-
-    [[nodiscard]] static TypeInfo* AddPointer(TypeInfo* typeInfo)
-    {
-        const uPtr address = reinterpret_cast<uPtr>(typeInfo) | 1;
-        return reinterpret_cast<TypeInfo*>(address);
-    }
-
-    [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo, const bool isPointer)
-    {
-        return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
-    }
-
-    [[nodiscard]] static TypeInfo* SetPointer(TypeInfo* typeInfo, const bool isPointer)
-    {
-        return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
-    }
+    [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept;
+    
+    [[nodiscard]] static       TypeInfo* StripPointer(      TypeInfo* typeInfo) noexcept;
+    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo) noexcept;
+    
+    [[nodiscard]] static       TypeInfo* AddPointer(      TypeInfo* typeInfo) noexcept;
+    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo) noexcept;
+    
+    [[nodiscard]] static       TypeInfo* SetPointer(      TypeInfo* typeInfo, bool isPointer) noexcept;
+    [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo, bool isPointer) noexcept;
 private:
     static uSys GenerateId() noexcept;
 private:
@@ -86,12 +71,12 @@ private:
 
 }
 
-static bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
+static inline bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {
     return left.Id() == right.Id();
 }
 
-static bool operator !=(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
+static inline bool operator !=(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {
     return !(left == right);
 }

@@ -1,0 +1,201 @@
+Vector3i add(const Vector3i& a, const Vector3i& b)
+{
+    Vector3i ret;
+    ret.x = a.x + b.x;
+    ret.y = a.y + b.y;
+    ret.z = a.z + b.z;
+    return ret;
+}
+
+
+Vector3i::Add(const Vector3i*, const Vector3i*):    ; const Vector3i* a, const Vector3i* b, Vector3i* $ret
+    .local 0 8      ; a
+    .local 1 8      ; b
+    .local 2 8      ; $ret
+    .local 3 4      ; a.?
+    .local 4 4      ; b.?
+    .local 5 4      ; res
+
+    Push.Arg.0      ; Push a onto the stack
+    Pop.0           ; Store a into Local #0
+    Push.Arg.1      ; Push b onto the stack
+    Pop.1           ; Store b into Local #1
+    Push.Arg.2      ; Push $ret onto the stack
+    Pop.2           ; Store $ret into Local #2
+
+    Load 3, 0       ; Load a.x into Local #2
+    Load 4, 1       ; Load b.x into Local #3
+    Push.3          ; Push a.x onto the stack
+    Push.N 4        ; Push b.x onto the stack
+    Add.i32         ; a.x + b.x
+    Pop.N 5         ; Store result into res
+    Store 2, 5      ; Store res into $ret.x
+
+    Const.4         ; Push sizeof(i32) onto the stack as an i32
+    Expand.SX.4.8   ; Expand sizeof(i32) into an i64
+    Dup.8           ; Duplicate this for b accessing b.y.
+    Dup.8           ; Duplicate this for $ret accessing $ret.y.
+    Dup.8           ; Duplicate this for a accessing a.z.
+    Dup.8           ; Duplicate this for b accessing b.z.
+    Dup.8           ; Duplicate this for $ret accessing $ret.z.
+
+    Push.0          ; Push a onto the stack
+    Add.i64         ; Offset a to access a.y
+    Pop.0           ; Store offset pointer into a
+    Push.1          ; Push b onto the stack
+    Add.i64         ; Offset b to access b.y
+    Pop.1           ; Store offset pointer into b
+    Push.2          ; Push $ret onto the stack
+    Add.i64         ; Offset $ret to access $ret.y
+    Pop.2           ; Store offset pointer into $ret
+
+    Load 3, 0       ; Load a.y into Local #2
+    Load 4, 1       ; Load b.y into Local #3
+    Push.3          ; Push a.y onto the stack
+    Push.N 4        ; Push b.y onto the stack
+    Add.i32         ; a.y + b.y
+    Pop.N 5         ; Store result into res
+    Store 2, 5      ; Store res into $ret.y
+
+    Push.0          ; Push a onto the stack
+    Add.i64         ; Offset a to access a.z
+    Pop.0           ; Store offset pointer into a
+    Push.1          ; Push b onto the stack
+    Add.i64         ; Offset b to access b.z
+    Pop.1           ; Store offset pointer into b
+    Push.2          ; Push $ret onto the stack
+    Add.i64         ; Offset $ret to access $ret.z
+    Pop.2           ; Store offset pointer into $ret
+
+    Load 3, 0       ; Load a.z into Local #2
+    Load 4, 1       ; Load b.z into Local #3
+    Push.3          ; Push a.z onto the stack
+    Push.N 4        ; Push b.z onto the stack
+    Add.i32         ; a.z + b.z
+    Pop.N 5         ; Store result into res
+    Store 2, 5      ; Store res into $ret.z
+
+    Ret
+
+Vector3i::Add(const Vector3i*, const Vector3i*):ssa $%$ret %a0 %a1:
+    ptr %0 = %a0                    <frame-0:8>
+    ptr %1 = %0                     <frame-0:0>  <local:0>
+    ptr %2 = %a1                    <frame-0:8> 
+    ptr %3 = %2                     <frame-0:0>  <local:1>
+    ptr %4 = %$ret                  <frame-0:8>
+    ptr %5 = %4                     <frame-0:0>  <local:2>
+    
+    i32 %6 = load %1                             <local:3>
+    i32 %7 = load %3                             <local:4>
+    i32 %8 = %6                     <frame-0:4>
+    i32 %9 = %7                     <frame-4:4>
+    i32 %10 = add %9, %8            <frame-0:4>
+    i32 %11 = %10                   <frame-0:0>  <local:5>
+    store %5, i32 %11   
+    
+    i32 %12 = $4                    <frame-0:4>
+    i64 %13 = expand i32 %12        <frame-0:8>
+    i64 %14 = %13                   <frame-8:8>
+    i64 %15 = %14                   <frame-16:8>
+    i64 %16 = %15                   <frame-24:8>
+    i64 %17 = %16                   <frame-32:8>
+    i64 %18 = %17                   <frame-40:8>
+
+    i64 %19 = rcast i64, ptr %1     <frame-48:8>
+    i64 %20 = add %19, %18          <frame-40:8>
+    ptr %21 = rcast ptr, i64 %20    <frame-40:0> <local:0>
+    i64 %22 = rcast i64, ptr %3     <frame-40:8>
+    i64 %23 = add %22, %17          <frame-32:8>
+    ptr %24 = rcast ptr, i64 %23    <frame-32:0> <local:1>
+    i64 %25 = rcast i64, ptr %5     <frame-32:8>
+    i64 %26 = add %25, %16          <frame-24:8>
+    ptr %26 = rcast ptr, i64 %26    <frame-24:0> <local:2>
+
+    i32 %27 = load %21                           <local:3>
+    i32 %28 = load %24                           <local:4>
+    i32 %29 = %27                   <frame-24:4>
+    i32 %30 = %28                   <frame-28:4>
+    i32 %31 = add %30, %29          <frame-24:4>
+    i32 %32 = %31                   <frame-24:0> <local:5>
+    store %26, i32 %32  
+    
+    i64 %33 = rcast i64, ptr %21    <frame-24:8>
+    i64 %34 = add %33, %15          <frame-16:8>
+    ptr %35 = rcast ptr, i64 %34    <frame-16:0> <local:0>
+    i64 %36 = rcast i64, ptr %24    <frame-16:8>
+    i64 %37 = add %36, %14          <frame-8:8>
+    ptr %38 = rcast ptr, i64 %37    <frame-8:0>  <local:1>
+    i64 %39 = rcast i64, ptr %26    <frame-8:8>
+    i64 %40 = add %39, %13          <frame-0:8>
+    ptr %41 = rcast ptr, i64 %40    <frame-0:0>  <local:2>
+    
+    i32 %42 = load %35                           <local:3>
+    i32 %43 = load %38                           <local:4>
+    i32 %44 = %42                   <frame-0:4>
+    i32 %45 = %43                   <frame-4:4>
+    i32 %46 = add %45, %44          <frame-0:4>
+    i32 %47 = %46                   <frame-0:0>  <local:5>
+    store %41, i32 %47
+
+    ret
+
+Vector3i::Add(const Vector3i*, const Vector3i*):ssa $%$ret %a0 %a1:opt:0:
+    i32 %0 = load %a0
+    i32 %1 = load %a1
+    i32 %2 = add %1, %0
+    store %$ret, i32 %2
+
+    i64 %3 = rcast i64, ptr %a0
+    i64 %4 = add %3, $4
+    ptr %5 = rcast ptr, i64 %4
+    i64 %6 = rcast i64, ptr %a1
+    i64 %7 = add %6, $4
+    ptr %8 = rcast ptr, i64 %7
+    i64 %9 = rcast i64, ptr %$ret
+    i64 %10 = add %9, $4
+    ptr %11 = rcast ptr, i64 %10
+
+    i32 %12 = load %5
+    i32 %13 = load %8
+    i32 %14 = add %13, %12
+    store %11, i32 %14
+
+    i64 %15 = add %4, $4
+    ptr %16 = rcast ptr, i64 %15
+    i64 %17 = add %7, $4
+    ptr %18 = rcast ptr, i64 %17
+    i64 %19 = add %10, $4
+    ptr %20 = rcast ptr, i64 %19
+
+    i32 %21 = load %16
+    i32 %22 = load %18
+    i32 %23 = add %22, %21
+    store %20, i32 %23
+
+    ret
+
+Vector3i::Add(const Vector3i*, const Vector3i*):ssa $%$ret %a0 %a1:opt:1:
+    ptr %0 = getptr %a0 + $4
+    ptr %1 = getptr %a0 + $8
+    ptr %2 = getptr %a1 + $4
+    ptr %3 = getptr %a1 + $8
+    ptr %4 = getptr %$ret + $4
+    ptr %5 = getptr %$ret + $8
+
+    i32 %6 = load %a0
+    i32 %7 = load %a1
+    i32 %8 = load %0
+    i32 %9 = load %2
+    i32 %10 = load %1
+    i32 %11 = load %3
+
+    i32 %12 = add %7, %6
+    i32 %13 = add %9, %8
+    i32 %14 = add %11, %10
+
+    store %$ret, i32 %12
+    store %4, i32 %13
+    store %5, i32 %14
+
+    ret
+

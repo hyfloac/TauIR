@@ -38,7 +38,7 @@ public:
 
     [[nodiscard]] u64 ReturnVal() const noexcept { return m_Arguments[0]; }
 private:
-    void ExecuteFunction(const Function* function) noexcept;
+    void ExecuteFunction(const Function* function, const Module* module) noexcept;
     void PushLocal(const Function* function, uSys localHead, u16 local) noexcept;
     void PopLocal(const Function* function, uSys localHead, u16 local) noexcept;
     void PushArgument(uSys argument) noexcept;

@@ -1,0 +1,82 @@
+Square(i64):
+    Push.Arg.0
+    Push.Arg.0
+    Mul.i64
+    Pop.Arg.0
+    Ret
+
+Main():
+    Const.N 16
+    Expand.SX.4.8
+    Pop.Arg.0
+    Call Square(i64)
+    Const.3
+    Push.Arg.0
+    Trunc.8.4
+    Add.i32
+    Expand.SX.4.8
+    Pop.Arg.0
+    Ret
+
+
+Square(i64):ssa$i64%0a:
+    assign i64 %0, %a0 <frame-0:8>
+    assign i64 %1, %a0 <frame-8:16>
+    mul i64 %2, %1, %0 <frame-0:8>
+    assign i64 %3, %2 <frame-0:0>
+    ret i64 %3
+end
+
+Square(i64):ssa$i64%a0:opt:
+    mul i64 %0, %a0, %a0
+    ret
+end
+
+Main():ssa$i64:
+    assign i32 %0, $16 <frame-0:4>
+    expand.sx i64 %1, i32 %0 <frame-0:8>
+    assign i64 %2, %1 <frame-0:0>
+    call %3, Square(i64), %2
+    assign i32 %4, $3 <frame-0:4>
+    assign i64 %5, %3 <frame-4:8>
+    trunc i32 %6, i64 %5 <frame-4:4>
+    add i32 %7, %6, %4 <frame-0:4>
+    expand.sx i64 %8, i32 %7 <frame-0:8>
+    assign i64 %9, %8 <frame-0:0>
+    ret i64 %9
+end
+
+Main():ssa:opt:0:
+    call, %0 Square(i64), $16
+    trunc i32 %1, i64 %0
+    add i32 %2, %1, $3
+    expand.sx i64 %3, i32 %2
+    ret i64 %3
+end
+
+Main():ssa:opt:1:
+    assign i64 %a0, $16
+    {    
+        mul i64 %0, %a0, %a0
+    }
+    trunc i32 %1, i64 %0
+    add i32 %2, %1, $3
+    expand.sx i64 %3, i32 %2
+    ret i64 %3
+end
+    
+Main():ssa:opt:2:
+    mul i64 %0, $16, $16
+    trunc i32 %1, i64 %0
+    add i32 %2, %1, $3
+    expand.sx i64 %3, i32 %2
+    ret i64 %3
+end
+
+Main():ssa:opt:2:
+    ret i64 $259
+end
+
+Main():asm:
+    mov rax, 259
+    ret

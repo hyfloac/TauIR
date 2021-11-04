@@ -30,6 +30,10 @@
     <ClInclude Include="include\TauIR\TypeInfo.hpp">
       <Filter>include\TauIR</Filter>
     </ClInclude>
+    <ClInclude Include="include\TauIR\ssa\SsaOpcodes.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaTypes.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaWriter.hpp" />
+    <ClInclude Include="include\TauIR\IrToSsa.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -44,5 +48,7 @@
     <ClCompile Include="src\TypeInfo.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\SsaWriter.cpp" />
+    <ClCompile Include="src\IrToSsa.cpp" />
   </ItemGroup>
 </Project>
