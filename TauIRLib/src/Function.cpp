@@ -1,10 +1,11 @@
 #include "TauIR/Function.hpp"
 #include "allocator/FixedBlockAllocator.hpp"
 #include "TauIR/TypeInfo.hpp"
+#include "TauIR/SafetyControls.hpp"
 
 namespace tau::ir {
 
-static thread_local FixedBlockAllocator<> g_allocator(sizeof(Function));
+static thread_local FixedBlockAllocator<TAU_IR_ALLOCATION_TRACKING> g_allocator(sizeof(Function));
 
 void* Function::operator new(const ::std::size_t sz) noexcept
 {
@@ -13,7 +14,7 @@ void* Function::operator new(const ::std::size_t sz) noexcept
         return nullptr;
     }
 
-    return g_allocator.allocate(sz);
+    return g_allocator.Allocate(sz);
 }
 
 void Function::operator delete(void* const ptr) noexcept
@@ -44,6 +45,7 @@ void Function::LoadLocalOffsets() noexcept
     {
         currentOffset = TypeInfo::StripPointer(m_LocalTypes[0])->Size();
     }
+
     for(uSys i = 1; i < m_LocalTypes.count(); ++i)
     {
         m_LocalOffsets[i - 1] = currentOffset;

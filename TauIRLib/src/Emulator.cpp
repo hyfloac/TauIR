@@ -28,12 +28,12 @@ void Emulator::Execute() noexcept
 
     const Function* const entryPoint = mainModule->Functions()[0];
 
-    ExecuteFunction(entryPoint, mainModule.get());
+    ExecuteFunction(entryPoint, mainModule.Get());
 }
 
 void Emulator::ExecuteFunction(const Function* const function, const Module* const module) noexcept
 {
-    const u8* codePtr = reinterpret_cast<const u8*>(function->Address());
+    const u8* codePtr = function->Address();
 
     // Unused while emulating.
     // const uPtr prevFunctionPtr = *(reinterpret_cast<const uPtr*>(m_Stack.arr() + m_StackPointer) - 1);
@@ -455,7 +455,7 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
                 codePtr += 2;
 
                 PushValue(reinterpret_cast<uSys>(codePtr));
-                const Module* const targetModule = m_Modules[moduleIndex].get();
+                const Module* const targetModule = m_Modules[moduleIndex].Get();
 
                 ExecuteFunction(targetModule->Functions()[functionIndex], targetModule);
                 break;

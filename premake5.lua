@@ -61,7 +61,26 @@ workspace "TauIR"
 
         includedirs {
             "%{prj.location}/include",
-            "%{wks.location}/libs/TauUtils/include"
+            "%{wks.location}/libs/TauUtils/TauUtils/include"
+        }
+
+    project "TauIRDebug"
+        kind "StaticLib"
+        language "C++"
+        toolset "clang"
+        location "TauIRDebug"
+
+        files { 
+            "%{prj.location}/**.h", 
+            "%{prj.location}/**.hpp", 
+            "%{prj.location}/src/**.c", 
+            "%{prj.location}/src/**.cpp" 
+        }
+
+        includedirs {
+            "%{prj.location}/include",
+            "%{wks.location}/libs/TauUtils/TauUtils/include",
+            "%{wks.location}/TauIRLib/include"
         }
 
     project "TauIRTest"
@@ -79,8 +98,9 @@ workspace "TauIR"
 
         includedirs {
             "%{prj.location}/include",
-            "%{wks.location}/libs/TauUtils/include",
-            "%{wks.location}/TauIRLib/include"
+            "%{wks.location}/libs/TauUtils/TauUtils/include",
+            "%{wks.location}/TauIRLib/include",
+            "%{wks.location}/TauIRDebug/include"
         }
 
         libdirs {
@@ -90,6 +110,7 @@ workspace "TauIR"
 
         links {
             "TauUtils.lib",
-            "TauIRLib.lib"
+            "TauIRLib.lib",
+            "TauIRDebug.lib"
         }
 

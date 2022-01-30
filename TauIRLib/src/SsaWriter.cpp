@@ -4,6 +4,8 @@
 #include <cstring>
 #include <stdexcept>
 
+#define MAX_ARGUMENT_COUNT (256)
+
 namespace tau::ir::ssa {
 
 constexpr static inline uSys GetOpCodeSize(SsaOpcode opcode) noexcept
@@ -81,14 +83,14 @@ void SsaWriter::WriteNop() noexcept
     WriteOpcode(SsaOpcode::Nop);
 }
 
-SsaWriter::VarId SsaWriter::WriteLabel() noexcept
+VarId SsaWriter::WriteLabel() noexcept
 {
     WriteOpcode(SsaOpcode::Label);
     m_VarTypeMap.emplace_back(SsaType::Void);
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteAssignImmediate(const SsaCustomType varType, const void* const value, const uSys valueSize) noexcept
+VarId SsaWriter::WriteAssignImmediate(const SsaCustomType varType, const void* const value, const uSys valueSize) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::AssignImmediate) + varType.Size() + valueSize);
     WriteOpcode(SsaOpcode::AssignImmediate);
@@ -98,7 +100,7 @@ SsaWriter::VarId SsaWriter::WriteAssignImmediate(const SsaCustomType varType, co
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteAssignVariable(const SsaCustomType varType, const VarId var) noexcept
+VarId SsaWriter::WriteAssignVariable(const SsaCustomType varType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::AssignVariable) + varType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::AssignVariable);
@@ -108,7 +110,7 @@ SsaWriter::VarId SsaWriter::WriteAssignVariable(const SsaCustomType varType, con
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteExpandSX(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
+VarId SsaWriter::WriteExpandSX(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::ExpandSX) + newType.Size() + oldType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::ExpandSX);
@@ -119,7 +121,7 @@ SsaWriter::VarId SsaWriter::WriteExpandSX(const SsaCustomType newType, const Ssa
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteExpandZX(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
+VarId SsaWriter::WriteExpandZX(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::ExpandZX) + newType.Size() + oldType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::ExpandZX);
@@ -130,7 +132,7 @@ SsaWriter::VarId SsaWriter::WriteExpandZX(const SsaCustomType newType, const Ssa
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteTrunc(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
+VarId SsaWriter::WriteTrunc(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::Trunc) + newType.Size() + oldType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::Trunc);
@@ -141,7 +143,7 @@ SsaWriter::VarId SsaWriter::WriteTrunc(const SsaCustomType newType, const SsaCus
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteRCast(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
+VarId SsaWriter::WriteRCast(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::RCast) + newType.Size() + oldType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::RCast);
@@ -152,7 +154,7 @@ SsaWriter::VarId SsaWriter::WriteRCast(const SsaCustomType newType, const SsaCus
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteBCast(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
+VarId SsaWriter::WriteBCast(const SsaCustomType newType, const SsaCustomType oldType, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BCast) + newType.Size() + oldType.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::BCast);
@@ -163,7 +165,7 @@ SsaWriter::VarId SsaWriter::WriteBCast(const SsaCustomType newType, const SsaCus
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteLoad(const SsaCustomType type, const VarId var) noexcept
+VarId SsaWriter::WriteLoad(const SsaCustomType type, const VarId var) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::Load) + type.Size() + sizeof(var));
     WriteOpcode(SsaOpcode::Load);
@@ -173,16 +175,25 @@ SsaWriter::VarId SsaWriter::WriteLoad(const SsaCustomType type, const VarId var)
     return ++m_IdIndex;
 }
 
-void SsaWriter::WriteStore(const SsaCustomType type, const VarId destPtr, const VarId sourceVar) noexcept
+void SsaWriter::WriteStoreV(const SsaCustomType type, const VarId destPtr, const VarId sourceVar) noexcept
 {
-    EnsureSize(GetOpCodeSize(SsaOpcode::Store) + type.Size() + sizeof(destPtr) + sizeof(sourceVar));
-    WriteOpcode(SsaOpcode::Store);
+    EnsureSize(GetOpCodeSize(SsaOpcode::StoreV) + type.Size() + sizeof(destPtr) + sizeof(sourceVar));
+    WriteOpcode(SsaOpcode::StoreV);
     WriteType(type);
     WriteT(destPtr);
     WriteT(sourceVar);
 }
 
-SsaWriter::VarId SsaWriter::WriteComputePtr(const VarId base, const VarId index, const i8 multiplier, const i16 offset) noexcept
+void SsaWriter::WriteStoreI(const SsaCustomType type, const VarId destPtr, const void* const value, const uSys size) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::StoreI) + type.Size() + sizeof(destPtr) + size);
+    WriteOpcode(SsaOpcode::StoreI);
+    WriteType(type);
+    WriteT(destPtr);
+    WriteRaw(value, size);
+}
+
+VarId SsaWriter::WriteComputePtr(const VarId base, const VarId index, const i8 multiplier, const i16 offset) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::ComputePtr) + sizeof(base) + sizeof(index) + sizeof(multiplier) + sizeof(offset));
     WriteOpcode(SsaOpcode::ComputePtr);
@@ -194,7 +205,7 @@ SsaWriter::VarId SsaWriter::WriteComputePtr(const VarId base, const VarId index,
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const VarId b)
+VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const VarId b)
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpVtoV) + sizeof(operation) + type.Size() + sizeof(a) + sizeof(b));
     WriteOpcode(SsaOpcode::BinOpVtoV);
@@ -206,7 +217,7 @@ SsaWriter::VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, c
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, const SsaCustomType type, const void* const aValue, const uSys aSize, const VarId b)
+VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, const SsaCustomType type, const void* const aValue, const uSys aSize, const VarId b)
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpVtoI) + sizeof(operation) + type.Size() + aSize + sizeof(b));
     WriteOpcode(SsaOpcode::BinOpVtoI);
@@ -218,7 +229,7 @@ SsaWriter::VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, c
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const void* const bValue, const uSys bSize)
+VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const void* const bValue, const uSys bSize)
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpItoV) + sizeof(operation) + type.Size() + sizeof(a) + bSize);
     WriteOpcode(SsaOpcode::BinOpItoV);
@@ -230,7 +241,7 @@ SsaWriter::VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, c
     return ++m_IdIndex;
 }
 
-SsaWriter::VarId SsaWriter::WriteSplit(const SsaCustomType aType, const VarId a, const u32 n, const SsaCustomType* const t) noexcept
+VarId SsaWriter::WriteSplit(const SsaCustomType aType, const VarId a, const u32 n, const SsaCustomType* const t) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::Split) + sizeof(a) + sizeof(n) + n * SsaCustomType::MaxSize);
     WriteOpcode(SsaOpcode::Split);
@@ -248,7 +259,7 @@ SsaWriter::VarId SsaWriter::WriteSplit(const SsaCustomType aType, const VarId a,
     return ret + 1;
 }
 
-SsaWriter::VarId SsaWriter::WriteJoin(const SsaCustomType outType, const u32 n, const SsaCustomType* const t, const VarId* const v) noexcept
+VarId SsaWriter::WriteJoin(const SsaCustomType outType, const u32 n, const SsaCustomType* const t, const VarId* const v) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::Join) + sizeof(n) + n * SsaCustomType::MaxSize + n * sizeof(v[0]));
     WriteOpcode(SsaOpcode::Join);
@@ -300,6 +311,7 @@ void SsaWriter::WriteType(SsaCustomType type) noexcept
 
 SsaFrameTracker::SsaFrameTracker(const uSys localCount) noexcept
     : m_Locals(new(::std::nothrow) VarId[localCount])
+    , m_Arguments(new(::std::nothrow) VarId[MAX_ARGUMENT_COUNT])
 #ifdef _DEBUG
     , m_LocalCount(localCount)
 #endif
@@ -308,18 +320,21 @@ SsaFrameTracker::SsaFrameTracker(const uSys localCount) noexcept
 SsaFrameTracker::~SsaFrameTracker() noexcept
 {
     delete[] m_Locals;
+    delete[] m_Arguments;
 }
 
 SsaFrameTracker::SsaFrameTracker(SsaFrameTracker&& move) noexcept
     : m_Frame(::std::move(move.m_Frame))
     , m_Locals(move.m_Locals)
+    , m_Arguments(move.m_Arguments)
 #ifdef _DEBUG
     , m_LocalCount(move.m_LocalCount)
 #endif
 {
     if(this != &move)
     {
-        move.m_Locals = nullptr;   
+        move.m_Locals = nullptr;
+        move.m_Arguments = nullptr;
     }
 }
 
@@ -330,13 +345,18 @@ SsaFrameTracker& SsaFrameTracker::operator=(SsaFrameTracker&& move) noexcept
         return *this;
     }
 
+    delete[] m_Locals;
+    delete[] m_Arguments;
+
     m_Frame = ::std::move(move.m_Frame);
     m_Locals = move.m_Locals;
+    m_Arguments = move.m_Arguments;
 #ifdef _DEBUG
     m_LocalCount = move.m_LocalCount;
 #endif
 
     move.m_Locals = nullptr;
+    move.m_Arguments = nullptr;
 
     return *this;
 }
@@ -370,7 +390,7 @@ void SsaFrameTracker::SetLocal(const VarId var, const uSys local)
     m_Locals[local] = var;
 }
 
-SsaFrameTracker::VarId SsaFrameTracker::GetLocal(const uSys local) const
+VarId SsaFrameTracker::GetLocal(const uSys local) const
 {
 #ifdef _DEBUG
     if(local > m_LocalCount)
@@ -380,6 +400,30 @@ SsaFrameTracker::VarId SsaFrameTracker::GetLocal(const uSys local) const
 #endif
 
     return m_Locals[local];
+}
+
+void SsaFrameTracker::SetArgument(const VarId var, const uSys arg)
+{
+#ifdef _DEBUG
+    if(arg > MAX_ARGUMENT_COUNT)
+    {
+        throw ::std::invalid_argument("local");
+    }
+#endif
+
+    m_Locals[arg] = var;
+}
+
+VarId SsaFrameTracker::GetArgument(const uSys arg) const
+{
+#ifdef _DEBUG
+    if(arg > MAX_ARGUMENT_COUNT)
+    {
+        throw ::std::invalid_argument("local");
+    }
+#endif
+
+    return m_Locals[arg];
 }
 
 }

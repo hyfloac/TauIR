@@ -199,3 +199,17 @@ Vector3i::Add(const Vector3i*, const Vector3i*):ssa $%$ret %a0 %a1:opt:1:
 
     ret
 
+Vector3i::Add(const Vector3i*, const Vector3i*):x86-64:
+    mov rax, [rcx]
+    mov r9, [rcx + 4]
+    mov r10, [rcx + 8]
+    
+    add rax, [rdx]
+    add r9, [rdx + 4]
+    add r10, [rdx + 8]
+
+    mov [r8], rax
+    mov [r8 + 4], r9
+    mov [r8 + 4], r10
+
+    ret

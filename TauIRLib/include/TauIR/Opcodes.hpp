@@ -36,7 +36,7 @@ enum class Opcode : u16
     PopGlobal        = 0xA022,
     PopGlobalExt     = 0xA023,
     PopGlobalPtr     = 0xA024,
-    PopGlobalPtrExt  = 0xA025,
+    PopGlobalExtPtr  = 0xA025,
     PopCount         = 0xA026,
     Dup1             = 0x000C,
     Dup2             = 0x000D,
@@ -63,9 +63,9 @@ enum class Opcode : u16
     Load             = 0x001B,
     LoadGlobal       = 0x901A,
     LoadGlobalExt    = 0x901B,
-    Store            = 0x002A,
-    StoreGlobal      = 0xA02A,
-    StoreGlobalExt   = 0xA02B,
+    Store            = 0x004A,
+    StoreGlobal      = 0xA04A,
+    StoreGlobalExt   = 0xA04B,
     Const0           = 0x0014,
     Const1           = 0x0015,
     Const2           = 0x0016,
@@ -85,7 +85,8 @@ enum class Opcode : u16
     Call             = 0x001C,
     CallExt          = 0x801C,
     CallInd          = 0x801D,
-    Ret              = 0x001D
+    Ret              = 0x001D,
+    Jump             = 0x001E
 };
 
 }

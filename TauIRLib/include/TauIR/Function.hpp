@@ -11,6 +11,9 @@
 #error "You have managed to find the one architecture that has strict pointer safety, unfortunately, we need relaxed pointer safety."
 #endif
 
+static_assert(sizeof(u8) == 1, "A byte is not a byte in size.");
+static_assert(CHAR_BIT == 8, "A byte is not 8 bits in size.");
+
 namespace tau::ir {
 
 enum class InlineControl : u32
@@ -139,36 +142,81 @@ class Function final
     DEFAULT_DESTRUCT(Function);
     DEFAULT_CM_PU(Function);
 public:
-    Function(const uPtr address, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
+    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
         : m_Address(address)
+		, m_CodeSize(codeSize)
         , m_LocalSize(0)
         , m_LocalTypes(localTypes)
-        , m_LocalOffsets(maxT(m_LocalTypes.count() - 1, 0))
+        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
         , m_Flags(flags)
     { LoadLocalOffsets(); }
     
-    Function(const uPtr address, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
+    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
         : m_Address(address)
+        , m_CodeSize(codeSize)
         , m_LocalSize(0)
         , m_LocalTypes(::std::move(localTypes))
-        , m_LocalOffsets(maxT(m_LocalTypes.count() - 1, 0))
+        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
         , m_Flags(flags)
     { LoadLocalOffsets(); }
 
-    [[nodiscard]] uSys   Address() const noexcept { return m_Address;   }
+    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, flags)
+    { }
+
+    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), flags)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, flags) // NOLINT(performance-no-int-to-ptr)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), flags) // NOLINT(performance-no-int-to-ptr)
+    { }
+
+    [[nodiscard]] const u8* Address() const noexcept { return m_Address; }
+    [[nodiscard]] uSys CodeSize() const noexcept { return m_CodeSize; }
     [[nodiscard]] uSys LocalSize() const noexcept { return m_LocalSize; }
     [[nodiscard]] const DynArray<const TypeInfo*>& LocalTypes() const noexcept { return m_LocalTypes;   }
     [[nodiscard]] const DynArray<uSys>&          LocalOffsets() const noexcept { return m_LocalOffsets; }
     [[nodiscard]] FunctionFlags Flags() const noexcept { return m_Flags; }
-public: 
+public:
+    /**
+     * Allocate with a fixed block allocator for performance.
+     *
+     *   We'll be allocating lots of functions for a program, and the
+     * actual size this struct is constant, thus we can use a fixed block
+     * allocator to drastically improve performance.
+     */
     [[nodiscard]] void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
 private:
     void LoadLocalOffsets() noexcept;
 private:
-    uPtr m_Address;
+    /**
+     * The address of the IR code.
+     */
+    const u8* m_Address;
+    /**
+     * The number of bytes of IR code.
+     */
+    uSys m_CodeSize;
+    /**
+     * The number of bytes that locals will take up.
+     */
     uSys m_LocalSize;
+    /**
+     * The types of all locals.
+     */
     DynArray<const TypeInfo*> m_LocalTypes;
+    /**
+     * The offsets of all locals.
+     *
+     *   This is one less than the number of locals as we can ignore the
+     * first offset as it is always zero.
+     */
     DynArray<uSys> m_LocalOffsets;
     FunctionFlags m_Flags;
 };

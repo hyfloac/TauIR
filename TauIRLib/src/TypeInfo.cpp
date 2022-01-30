@@ -1,23 +1,24 @@
 #include "TauIR/TypeInfo.hpp"
 #include "allocator/FixedBlockAllocator.hpp"
 #include <atomic>
+#include "TauIR/SafetyControls.hpp"
 
 namespace tau::ir {
 
 #ifdef _DEBUG
-const TypeInfo TypeInfo::Void(0, "void");
-const TypeInfo TypeInfo::Bool(1, "bool");
-const TypeInfo TypeInfo::I8(1, "i8");
-const TypeInfo TypeInfo::I16(2, "i16");
-const TypeInfo TypeInfo::I32(4, "i32");
-const TypeInfo TypeInfo::I64(8, "i64");
-const TypeInfo TypeInfo::U8(1, "u8");
-const TypeInfo TypeInfo::U16(2, "u16");
-const TypeInfo TypeInfo::U32(4, "u32");
-const TypeInfo TypeInfo::U64(8, "u64");
-const TypeInfo TypeInfo::F32(4, "f32");
-const TypeInfo TypeInfo::F64(8, "f32");
-const TypeInfo TypeInfo::Char(1, "char");
+const TypeInfo TypeInfo::Void(0, u8"void");
+const TypeInfo TypeInfo::Bool(1, u8"bool");
+const TypeInfo TypeInfo::I8(1, u8"i8");
+const TypeInfo TypeInfo::I16(2, u8"i16");
+const TypeInfo TypeInfo::I32(4, u8"i32");
+const TypeInfo TypeInfo::I64(8, u8"i64");
+const TypeInfo TypeInfo::U8(1, u8"u8");
+const TypeInfo TypeInfo::U16(2, u8"u16");
+const TypeInfo TypeInfo::U32(4, u8"u32");
+const TypeInfo TypeInfo::U64(8, u8"u64");
+const TypeInfo TypeInfo::F32(4, u8"f32");
+const TypeInfo TypeInfo::F64(8, u8"f32");
+const TypeInfo TypeInfo::Char(1, u8"char");
 #else
 const TypeInfo TypeInfo::Void(0, "");
 const TypeInfo TypeInfo::Bool(1, "");
@@ -34,7 +35,7 @@ const TypeInfo TypeInfo::F64(8, "");
 const TypeInfo TypeInfo::Char(1, "");
 #endif
 
-static thread_local FixedBlockAllocator<> g_allocator(_alignTo(sizeof(TypeInfo), 8));
+static thread_local FixedBlockAllocator<TAU_IR_ALLOCATION_TRACKING> g_allocator(AlignTo<uSys, 8>(sizeof(TypeInfo)));
 
 void* TypeInfo::operator new(const ::std::size_t sz) noexcept
 {
@@ -43,7 +44,7 @@ void* TypeInfo::operator new(const ::std::size_t sz) noexcept
         return nullptr;
     }
 
-    return g_allocator.allocate(sz);
+    return g_allocator.Allocate(sz);
 }
 
 void TypeInfo::operator delete(void* const ptr) noexcept
@@ -53,7 +54,7 @@ void TypeInfo::operator delete(void* const ptr) noexcept
         return;
     }
 
-    g_allocator.deallocate(ptr);
+    g_allocator.Deallocate(ptr);
 }
 
 bool TypeInfo::IsPointer(const TypeInfo* typeInfo) noexcept

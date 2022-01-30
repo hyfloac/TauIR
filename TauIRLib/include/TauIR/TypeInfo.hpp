@@ -24,19 +24,19 @@ public:
     static const TypeInfo F64;
     static const TypeInfo Char;
 public:
-    TypeInfo(const uSys size, const DynString& name) noexcept
+    TypeInfo(const uSys size, const C8DynString& name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
         , m_Name(name)
     { }
     
-    TypeInfo(const uSys size, DynString&& name) noexcept
+    TypeInfo(const uSys size, C8DynString&& name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
         , m_Name(::std::move(name))
     { }
 
-    TypeInfo(const uSys size, const char* name) noexcept
+    TypeInfo(const uSys size, const c8* name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
         , m_Name(name)
@@ -45,8 +45,8 @@ public:
     [[nodiscard]] uSys Size() const noexcept { return m_Size; }
     [[nodiscard]] uSys   Id() const noexcept { return m_Id;   }
 
-    [[nodiscard]] const DynString& Name()     const noexcept { return m_Name; }
-    [[nodiscard]] operator const DynString&() const noexcept { return m_Name; }
+    [[nodiscard]] const C8DynString& Name()     const noexcept { return m_Name; }
+    [[nodiscard]] operator const C8DynString&() const noexcept { return m_Name; }
 public:
     void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
@@ -66,7 +66,7 @@ private:
 private:
     uSys m_Size;
     uSys m_Id;
-    DynString m_Name;
+    C8DynString m_Name;
 };
 
 }

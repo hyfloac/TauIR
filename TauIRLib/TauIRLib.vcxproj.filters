@@ -7,6 +7,9 @@
     <Filter Include="include\TauIR">
       <UniqueIdentifier>{5D1EF2A3-C9DE-6DDA-9219-B757FE98B2B6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\TauIR\ssa">
+      <UniqueIdentifier>{13C37F72-7FD9-7D08-C850-092A34A64E90}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src">
       <UniqueIdentifier>{2DAB880B-99B4-887C-2230-9F7C8E38947C}</UniqueIdentifier>
     </Filter>
@@ -21,6 +24,9 @@
     <ClInclude Include="include\TauIR\Function.hpp">
       <Filter>include\TauIR</Filter>
     </ClInclude>
+    <ClInclude Include="include\TauIR\IrToSsa.hpp">
+      <Filter>include\TauIR</Filter>
+    </ClInclude>
     <ClInclude Include="include\TauIR\Module.hpp">
       <Filter>include\TauIR</Filter>
     </ClInclude>
@@ -30,10 +36,18 @@
     <ClInclude Include="include\TauIR\TypeInfo.hpp">
       <Filter>include\TauIR</Filter>
     </ClInclude>
-    <ClInclude Include="include\TauIR\ssa\SsaOpcodes.hpp" />
-    <ClInclude Include="include\TauIR\ssa\SsaTypes.hpp" />
-    <ClInclude Include="include\TauIR\ssa\SsaWriter.hpp" />
-    <ClInclude Include="include\TauIR\IrToSsa.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaOpcodes.hpp">
+      <Filter>include\TauIR\ssa</Filter>
+    </ClInclude>
+    <ClInclude Include="include\TauIR\ssa\SsaTypes.hpp">
+      <Filter>include\TauIR\ssa</Filter>
+    </ClInclude>
+    <ClInclude Include="include\TauIR\ssa\SsaWriter.hpp">
+      <Filter>include\TauIR\ssa</Filter>
+    </ClInclude>
+    <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
+    <ClInclude Include="include\TauIR\SafetyControls.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -42,13 +56,18 @@
     <ClCompile Include="src\Function.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\IrToSsa.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\Module.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SsaWriter.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\TypeInfo.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\SsaWriter.cpp" />
-    <ClCompile Include="src\IrToSsa.cpp" />
+    <ClCompile Include="src\SsaTypeRegistry.cpp" />
   </ItemGroup>
 </Project>

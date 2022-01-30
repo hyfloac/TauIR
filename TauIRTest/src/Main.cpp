@@ -2,11 +2,22 @@
 #include "TauIR/Emulator.hpp"
 #include "TauIR/Module.hpp"
 #include "TauIR/TypeInfo.hpp"
+#include "TauIR/ByteCodeDumper.hpp"
 
-#include <cstdio>
+#include <ConPrinter.hpp>
+
+#include "TauIR/ssa/SsaTypes.hpp"
+#include "TauIR/ssa/opto/ConstantProp.hpp"
+
+void TestSsa() noexcept;
 
 int main(int argCount, char* args[])
 {
+    Console::Init();
+
+    TestSsa();
+    return 0;
+
     u8 code[] = {
         0x10,                   // Push.0
         0x13,                   // Push.3
@@ -74,6 +85,7 @@ int main(int argCount, char* args[])
 
     using TypeInfo = tau::ir::TypeInfo;
     using Function = tau::ir::Function;
+    using FunctionFlags = tau::ir::FunctionFlags;
     using Module = tau::ir::Module;
 
     const TypeInfo* intType = new TypeInfo(4, "int");
@@ -94,11 +106,16 @@ int main(int argCount, char* args[])
     entryTypes[0] = TypeInfo::AddPointer(intType);
 
     DynArray<const Function*> functions(2);
-    functions[0] = new Function(reinterpret_cast<uPtr>(codeMain), DynArray<const TypeInfo*>());
-    functions[1] = new Function(reinterpret_cast<uPtr>(codeSquare), DynArray<const TypeInfo*>());
+    functions[0] = new Function(codeMain, DynArray<const TypeInfo*>(), FunctionFlags(tau::ir::InlineControl::NoInline, tau::ir::CallingConvention::Default, tau::ir::OptimizationControl::Default));
+    functions[1] = new Function(codeSquare, DynArray<const TypeInfo*>(), FunctionFlags(tau::ir::InlineControl::Default, tau::ir::CallingConvention::Default, tau::ir::OptimizationControl::Default));
     
+    ::tau::ir::DumpFunction(functions[0], 0);
+    ConPrinter::Print("\n");
+    ::tau::ir::DumpFunction(functions[1], 1);
+    ConPrinter::Print("\n");
+
     ::std::vector<Ref<Module>> modules(1);
-    modules[0].reset(::std::move(functions));
+    modules[0].Reset(::std::move(functions));
 
     tau::ir::Emulator emulator(::std::move(modules));
 
@@ -106,7 +123,7 @@ int main(int argCount, char* args[])
 
     const u64 retVal = emulator.ReturnVal();
 
-    printf("Return Val: %llu (%lld) [0x%llX]\n", retVal, retVal, retVal);
+    ConPrinter::Print("Return Val: {} ({}) [0x{X}]\n", retVal, static_cast<i64>(retVal), retVal);
 
     delete intType;
     delete byteType;
@@ -115,4 +132,29 @@ int main(int argCount, char* args[])
     delete pointerType;
 
     return static_cast<int>(retVal);
+}
+
+void TestSsa() noexcept
+{
+    u8 code0[] = {
+        0x30, 0x04, 0x04, 0x00, 0x00, 0x00,                                     // i32 %1 = 4
+        0x31, 0x04, 0x01, 0x00, 0x00, 0x00,                                     // i32 %2 = %1
+        0x52, 0x02, 0x04, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,       // i32 %3 = %2 * 7
+        0x3A, 0x00, 0x00, 0x00, 0x80, 0x01, 0x00, 0x00, 0x80, 0x04, 0x00, 0x17, // void* %4 = [%a0 + %a1 * 4 + 23]
+        0x36, 0x84, 0x80, 0x04, 0x00, 0x00, 0x00,                               // i32* %5 = %4
+        0x39, 0x04, 0x05, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,             // Store i32 %5, %3
+        0x37, 0x08, 0x04, 0x03, 0x00, 0x00, 0x00,                               // u32 %6 = RCast u32 %3
+        0x33, 0x09, 0x08, 0x06, 0x00, 0x00, 0x00,                               // u64 %7 = Expand.ZX u32 %6
+        0x50, 0x05, 0x09, 0x07, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x80,       // u64 %8 = %7 << %a2
+    };
+
+    const tau::ir::ssa::SsaCustomTypeRegistry registry;
+
+    tau::ir::ssa::DumpSsa(code0, sizeof(code0), 0, registry);
+
+    tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+
+    visitor.Traverse(code0, sizeof(code0), 8);
+
+    tau::ir::ssa::DumpSsa(visitor.Writer().Buffer(), visitor.Writer().Size(), 0, registry);
 }

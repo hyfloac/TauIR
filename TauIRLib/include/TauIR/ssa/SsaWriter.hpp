@@ -14,8 +14,6 @@ class SsaWriter
 {
     DELETE_COPY(SsaWriter);
 public:
-    using VarId = u32;
-public:
     SsaWriter(uSys initialBufferSize = 64) noexcept;
     ~SsaWriter() noexcept;
 
@@ -32,7 +30,8 @@ public:
     VarId WriteRCast(SsaCustomType newType, SsaCustomType oldType, VarId var) noexcept;
     VarId WriteBCast(SsaCustomType newType, SsaCustomType oldType, VarId var) noexcept;
     VarId WriteLoad(SsaCustomType type, VarId var) noexcept;
-    void WriteStore(SsaCustomType type, VarId destPtr, VarId sourceVar) noexcept;
+    void WriteStoreV(SsaCustomType type, VarId destPtr, VarId sourceVar) noexcept;
+    void WriteStoreI(SsaCustomType type, VarId destPtr, const void* value, uSys size) noexcept;
     VarId WriteComputePtr(VarId base, VarId index, i8 multiplier, i16 offset) noexcept;
     VarId WriteBinOpVtoV(SsaBinaryOperation operation, SsaCustomType type, VarId a, VarId b);
     VarId WriteBinOpVtoI(SsaBinaryOperation operation, SsaCustomType type, const void* aValue, uSys aSize, VarId b);
@@ -41,6 +40,10 @@ public:
     VarId WriteJoin(SsaCustomType outType, u32 n, const SsaCustomType* t, const VarId* v) noexcept;
 
     [[nodiscard]] SsaCustomType GetVarType(const VarId var) const noexcept { return m_VarTypeMap[var]; }
+
+    [[nodiscard]] const u8* Buffer() const noexcept { return m_Buffer; }
+    [[nodiscard]] uSys Size() const noexcept { return m_WriteIndex; }
+    [[nodiscard]] VarId IdIndex() const noexcept { return m_IdIndex; }
 private:
     void EnsureSize(uSys additionalSize) noexcept;
     
@@ -66,7 +69,6 @@ class SsaFrameTracker final
 {
     DELETE_COPY(SsaFrameTracker);
 public:
-    using VarId = SsaWriter::VarId;
     struct FrameInfo final
     {
         DEFAULT_DESTRUCT(FrameInfo);
@@ -93,9 +95,13 @@ public:
 
     void SetLocal(VarId var, uSys local);
     VarId GetLocal(uSys local) const;
+
+    void SetArgument(VarId var, uSys arg);
+    VarId GetArgument(uSys arg) const;
 private:
     ::std::deque<FrameInfo> m_Frame;
     VarId* m_Locals;
+    VarId* m_Arguments;
 #ifdef _DEBUG
     uSys m_LocalCount;
 #endif
