@@ -1,15 +1,8 @@
 #include "TauIR/ssa/SsaTypes.hpp"
 #include <allocator/FixedBlockAllocator.hpp>
+#include "TauIR/CompileControls.hpp"
 
-#ifndef TAUIR_DEBUG_TYPES
-  #ifdef _DEBUG
-    #define TAUIR_DEBUG_TYPES 1
-  #else
-    #define TAUIR_DEBUG_TYPES 0
-  #endif
-#endif
-
-#if TAUIR_DEBUG_TYPES
+#if TAU_IR_DEBUG_TYPES
 
 namespace tau::ir::ssa {
 static thread_local FixedBlockArenaAllocator<AllocationTracking::None> g_DebugTypeAllocator(AlignTo<uSys, 8>(sizeof(SsaCustomTypeDebugNode)));

@@ -15,3 +15,12 @@
 #else
   #define TAU_IR_ALLOCATION_TRACKING AllocationTracking::DoubleDeleteCount
 #endif
+
+#ifndef TAU_IR_DEBUG_TYPES
+  #ifdef _DEBUG
+    #define TAU_IR_DEBUG_TYPES 1
+  #else
+    #define TAU_IR_DEBUG_TYPES 0
+  #endif
+#endif
+

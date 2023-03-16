@@ -2,6 +2,7 @@
 
 #include <NumTypes.hpp>
 #include <String.hpp>
+#include "Common.hpp"
 
 namespace tau::ir {
 
@@ -36,10 +37,15 @@ public:
         , m_Name(::std::move(name))
     { }
 
-    TypeInfo(const uSys size, const c8* name) noexcept
+    TypeInfo(const uSys size, const c8* const name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
         , m_Name(name)
+    { }
+
+    TypeInfo(const uSys size) noexcept
+        : m_Size(size)
+        , m_Id(GenerateId())
     { }
 
     [[nodiscard]] uSys Size() const noexcept { return m_Size; }
@@ -51,16 +57,22 @@ public:
     void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
 
-    [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept;
+    [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept { return CheckPointerTag<1>(typeInfo); }
     
-    [[nodiscard]] static       TypeInfo* StripPointer(      TypeInfo* typeInfo) noexcept;
-    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo) noexcept;
+    [[nodiscard]] static       TypeInfo* StripPointer(      TypeInfo* typeInfo) noexcept { return UnTagPointer<7>(typeInfo); }
+    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo) noexcept { return UnTagPointer<7>(typeInfo); }
     
-    [[nodiscard]] static       TypeInfo* AddPointer(      TypeInfo* typeInfo) noexcept;
-    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo) noexcept;
+    [[nodiscard]] static       TypeInfo* AddPointer(      TypeInfo* typeInfo) noexcept { return TagPointer<1>(typeInfo); }
+    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo) noexcept { return TagPointer<1>(typeInfo); }
     
     [[nodiscard]] static       TypeInfo* SetPointer(      TypeInfo* typeInfo, bool isPointer) noexcept;
     [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo, bool isPointer) noexcept;
+
+    template<bool IsPointer>
+    [[nodiscard]] static       TypeInfo* SetPointer(      TypeInfo* typeInfo) noexcept;
+
+    template<bool IsPointer>
+    [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo) noexcept;
 private:
     static uSys GenerateId() noexcept;
 private:
@@ -69,14 +81,52 @@ private:
     C8DynString m_Name;
 };
 
+inline TypeInfo* TypeInfo::SetPointer(TypeInfo* typeInfo, const bool isPointer) noexcept
+{
+    return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
 }
 
-static inline bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
+inline const TypeInfo* TypeInfo::SetPointer(const TypeInfo* typeInfo, const bool isPointer) noexcept
+{
+    return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
+}
+
+template<bool IsPointer>
+inline TypeInfo* TypeInfo::SetPointer(TypeInfo* typeInfo) noexcept
+{
+    if constexpr(IsPointer)
+    {
+        return AddPointer(typeInfo);
+    }
+    else
+    {
+        return StripPointer(typeInfo);
+    }
+}
+
+template<bool IsPointer>
+inline const TypeInfo* TypeInfo::SetPointer(const TypeInfo* typeInfo) noexcept
+{
+    if constexpr(IsPointer)
+    {
+        return AddPointer(typeInfo);
+    }
+    else
+    {
+        return StripPointer(typeInfo);
+    }
+}
+
+}
+
+
+
+inline bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {
     return left.Id() == right.Id();
 }
 
-static inline bool operator !=(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
+inline bool operator !=(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {
     return !(left == right);
 }

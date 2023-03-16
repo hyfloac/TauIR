@@ -1,7 +1,7 @@
 #include "TauIR/Function.hpp"
 #include "allocator/FixedBlockAllocator.hpp"
 #include "TauIR/TypeInfo.hpp"
-#include "TauIR/SafetyControls.hpp"
+#include "TauIR/CompileControls.hpp"
 
 namespace tau::ir {
 

@@ -47,7 +47,7 @@
     </ClInclude>
     <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
-    <ClInclude Include="include\TauIR\SafetyControls.hpp" />
+    <ClInclude Include="include\TauIR\CompileControls.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">

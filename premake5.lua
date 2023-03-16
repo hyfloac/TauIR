@@ -98,18 +98,20 @@ workspace "TauIR"
 
         includedirs {
             "%{prj.location}/include",
-            "%{wks.location}/libs/TauUtils/TauUtils/include",
+            "%{wks.location}/libs/TauUtils/TauUtilsDynmaic/include",
             "%{wks.location}/TauIRLib/include",
             "%{wks.location}/TauIRDebug/include"
         }
 
         libdirs {
             "%{cfg.outdir}",
-            "%{wks.location}/libs/TauUtils/bin/%{cfg.shortname}-%{_arch}"
+            "%{wks.location}/libs/TauUtils/build/TauUtilsStatic/%{cfg.longname}",
+            "%{wks.location}/libs/TauUtils/build/TauUtilsDynamic/%{cfg.longname}"
         }
 
         links {
-            "TauUtils.lib",
+            "TauUtilsDynamicStatic.lib",
+            "TauUtilsStatic.lib",
             "TauIRLib.lib",
             "TauIRDebug.lib"
         }

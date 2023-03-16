@@ -798,6 +798,9 @@ private:
 			case SsaBinaryOperation::BarrelShiftRight:
 				result = internal::RotateRight(a, b);
 				break;
+			case SsaBinaryOperation::Comp:
+				throw 0;
+				break;
 		}
 
 		m_NewVarMap[newVar] = m_Writer.WriteAssignImmediate(type, &result, sizeof(result));

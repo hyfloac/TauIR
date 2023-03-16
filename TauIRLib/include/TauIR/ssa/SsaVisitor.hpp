@@ -118,7 +118,9 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
             opcodeRaw |= codePtr[i++];
         }
 
-        switch(static_cast<SsaOpcode>(opcodeRaw))
+        const SsaOpcode opcode = static_cast<SsaOpcode>(opcodeRaw);
+        
+        switch(opcode)
         {
             case SsaOpcode::Nop:
                 if(!GetDerived().VisitNop())
@@ -422,6 +424,16 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
                 }
 
                 idIndex += joinCount;
+                break;
+            }
+            case SsaOpcode::Branch:
+            case SsaOpcode::BranchCond:
+            case SsaOpcode::Call:
+            case SsaOpcode::CallExt:
+            case SsaOpcode::CallInd:
+            case SsaOpcode::Ret:
+            {
+                throw 1;
                 break;
             }
         }

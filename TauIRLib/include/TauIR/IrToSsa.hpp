@@ -22,7 +22,7 @@ public:
 private:
     static VarId PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, uSys size, ssa::SsaType ssaType);
     static VarId PopLocal(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId localIndex);
-    static VarId PopArgument(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId argumentIndex);
+    static VarId PopArgument(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId argIndex);
 };
 
 }

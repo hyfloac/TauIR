@@ -6,15 +6,16 @@ namespace tau::ir::ssa {
 
 enum class SsaBinaryOperation : u8
 {
-    Add              = 0,
-    Sub              = 1,
-    Mul              = 2,
-    Div              = 3,
-    Rem              = 4,
-    BitShiftLeft     = 5,
-    BitShiftRight    = 6,
-    BarrelShiftLeft  = 7,
-    BarrelShiftRight = 8
+    Add              = 0x00,
+    Sub              = 0x01,
+    Mul              = 0x02,
+    Div              = 0x03,
+    Rem              = 0x04,
+    BitShiftLeft     = 0x05,
+    BitShiftRight    = 0x06,
+    BarrelShiftLeft  = 0x07,
+    BarrelShiftRight = 0x08,
+    Comp             = 0x70
 };
 
 enum class SsaOpcode : u16
@@ -36,7 +37,13 @@ enum class SsaOpcode : u16
     BinOpVtoI       = 0x0051,
     BinOpItoV       = 0x0052,
     Split           = 0x0020,
-    Join            = 0x0021
+    Join            = 0x0021,
+    Branch          = 0x0040,
+    BranchCond      = 0x0041,
+    Call            = 0x0042,
+    CallExt         = 0x0043,
+    CallInd         = 0x0044,
+    Ret             = 0x0045,
 };
 
 }

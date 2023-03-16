@@ -221,4 +221,41 @@ private:
     FunctionFlags m_Flags;
 };
 
+template<typename TRet>
+class NativeFunction final
+{
+    DELETE_CONSTRUCT(NativeFunction);
+    DELETE_DESTRUCT(NativeFunction);
+    DELETE_CM(NativeFunction);
+public:
+    static void* PrepareNativeFunctionPointer(const Function* function) noexcept
+    {
+        return const_cast<void*>(reinterpret_cast<const void*>(function->Address()));
+    }
+    
+    static TRet CallNativeFunctionPointer(const Function* function) noexcept
+    {
+        return reinterpret_cast<TRet(*)()>(PrepareNativeFunctionPointer(function))();
+    }
+};
+
+
+template<>
+class NativeFunction<void> final
+{
+    DELETE_CONSTRUCT(NativeFunction);
+    DELETE_DESTRUCT(NativeFunction);
+    DELETE_CM(NativeFunction);
+public:
+    static void* PrepareNativeFunctionPointer(const Function* function) noexcept
+    {
+        return const_cast<void*>(reinterpret_cast<const void*>(function->Address()));
+    }
+
+    static void CallNativeFunctionPointer(const Function* function, const DynArray<u64>& arguments) noexcept
+    {
+        reinterpret_cast<void(*)(const DynArray<u64>&)>(PrepareNativeFunctionPointer(function))(arguments);
+    }
+};
+
 }

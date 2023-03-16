@@ -59,7 +59,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>include;..\libs\TauUtils\TauUtils\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\libs\TauUtils\TauUtilsDynamic\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -83,7 +83,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>include;..\libs\TauUtils\TauUtils\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\libs\TauUtils\TauUtilsDynamic\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -112,7 +112,7 @@
     <ClInclude Include="include\TauIR\IrToSsa.hpp" />
     <ClInclude Include="include\TauIR\Module.hpp" />
     <ClInclude Include="include\TauIR\Opcodes.hpp" />
-    <ClInclude Include="include\TauIR\SafetyControls.hpp" />
+    <ClInclude Include="include\TauIR\CompileControls.hpp" />
     <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
     <ClInclude Include="include\TauIR\TypeInfo.hpp" />
