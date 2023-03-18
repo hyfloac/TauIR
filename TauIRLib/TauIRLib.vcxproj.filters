@@ -48,6 +48,7 @@
     <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
     <ClInclude Include="include\TauIR\CompileControls.hpp" />
+    <ClInclude Include="include\TauIR\IrVisitor.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -69,5 +70,8 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\SsaTypeRegistry.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="include\TauIR\IrVisitor.inl" />
   </ItemGroup>
 </Project>

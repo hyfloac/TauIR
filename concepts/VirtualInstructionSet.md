@@ -160,7 +160,7 @@ The **S**ingle **S**tatic **A**ssignment assembly is used during the JIT process
 
 ### SSA Variables
 
-Because this is Single Static Assignment, every non-parameter variable is immutable and can only be set once. If the variable ID has the high bit set, then it is a function parameter. Functions always start their parameters at 0 (with the high bit set, i.e. 0x80000000). A function cannot mutate the values in its parameters. When a function call is made, the base index (without the high bit) is passed into the call. Every variable sequentially at and after the base index variable is then passed into the function, at which point they would be localized to offset 0 (0x80000000) automatically.
+Because this is Single Static Assignment, every variable is immutable and can only be set once. If the variable ID has the high bit set, then it is a function parameter. Functions always start their parameters at 0 (with the high bit set, i.e. 0x80000000). A function cannot mutate the values in its parameters. When a function call is made, the base index (without the high bit) is passed into the call. Every variable sequentially at and after the base index variable is then passed into the function, at which point they would be localized to offset 0 (0x80000000) automatically.
 
 ### SSA Types
 

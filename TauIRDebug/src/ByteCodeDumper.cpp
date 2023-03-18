@@ -1,894 +1,553 @@
+// ReSharper disable CppHidingFunction
 #include "TauIR/ByteCodeDumper.hpp"
 #include "TauIR/Function.hpp"
-#include "TauIR/Opcodes.hpp"
 #include "TauIR/ssa/SsaOpcodes.hpp"
 #include "TauIR/ssa/SsaTypes.hpp"
 #include <ConPrinter.hpp>
 
 #include "TauIR/Common.hpp"
 #include "TauIR/Module.hpp"
-
+#include "TauIR/IrVisitor.hpp"
 
 namespace tau::ir {
 
 static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept;
 
-template<typename T>
-static T ReadCodeValue(const u8*& codePtr)
+class DumpVisitor : public BaseIrVisitor<DumpVisitor>
 {
-    const T ret = *reinterpret_cast<const T*>(codePtr);
-    codePtr += sizeof(T);
-    return ret;
-}
+    DEFAULT_DESTRUCT(DumpVisitor);
+    DEFAULT_CM_PU(DumpVisitor);
+public:
+    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules) noexcept
+        : m_Labels(labels)
+        , m_Modules(modules)
+        , m_CurrCodePtr(nullptr)
+    { }
 
-static iSys ShouldPlaceLabel(const DynArray<const u8*>& labels, const u8* const codePtr) noexcept
-{
-    for(uSys i = 0; i < labels.Count(); ++i)
+    // DumpVisitor(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules) noexcept
+    //     : m_Labels(labels)
+    //     , m_Modules(::std::move(modules))
+    //     , m_CurrCodePtr(nullptr)
+    // { }
+    //
+    // DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules) noexcept
+    //     : m_Labels(::std::move(labels))
+    //     , m_Modules(modules)
+    //     , m_CurrCodePtr(nullptr)
+    // { }
+    
+    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>* modules) noexcept
+        : m_Labels(::std::move(labels))
+        , m_Modules(::std::move(modules))
+        , m_CurrCodePtr(nullptr)
+    { }
+
+    void Reset(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules) noexcept
     {
-        if(labels[i] == codePtr)
-        {
-            return static_cast<iSys>(i);
-        }
+        m_Labels = labels;
+        m_Modules = modules;
+        m_CurrCodePtr = nullptr;
+    }
+    
+    // void Reset(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules) noexcept
+    // {
+    //     m_Labels = labels;
+    //     m_Modules = ::std::move(modules);
+    //     m_CurrCodePtr = nullptr;
+    // }
+    //
+    // void Reset(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules) noexcept
+    // {
+    //     m_Labels = ::std::move(labels);
+    //     // m_Modules = modules;
+    //     m_CurrCodePtr = nullptr;
+    // }
+    
+    void Reset(DynArray<const u8*>&& labels, ::std::vector<Ref<Module>>* modules) noexcept
+    {
+        m_Labels = ::std::move(labels);
+        m_Modules = ::std::move(modules);
+        m_CurrCodePtr = nullptr;
     }
 
-    return -1;
-}
+    void PreVisit(const u8* const codePtr) noexcept
+    {
+        const iSys labelIndex = ShouldPlaceLabel(codePtr);
+        if(labelIndex != -1)
+        {
+            ConPrinter::PrintLn("  .L{}:", labelIndex);
+        }
+
+        m_CurrCodePtr = codePtr;
+    }
+
+    void VisitNop() noexcept
+    { ConPrinter::PrintLn("    Nop"); }
+
+    void VisitPush0() noexcept
+    { ConPrinter::PrintLn("    Push.0"); }
+
+    void VisitPush1() noexcept
+    { ConPrinter::PrintLn("    Push.1"); }
+
+    void VisitPush2() noexcept
+    { ConPrinter::PrintLn("    Push.2"); }
+
+    void VisitPush3() noexcept
+    { ConPrinter::PrintLn("    Push.3"); }
+
+    void VisitPushN(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Push.N {}", localIndex); }
+
+    void VisitPushArg0() noexcept
+    { ConPrinter::PrintLn("    Push.Arg.0"); }
+
+    void VisitPushArg1() noexcept
+    { ConPrinter::PrintLn("    Push.Arg.1"); }
+
+    void VisitPushArg2() noexcept
+    { ConPrinter::PrintLn("    Push.Arg.2"); }
+
+    void VisitPushArg3() noexcept
+    { ConPrinter::PrintLn("    Push.Arg.3"); }
+
+    void VisitPushArgN(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Push.Arg.N {}", localIndex); }
+
+    void VisitPushPtr(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Push.Ptr {}", localIndex); }
+
+    void VisitPushGlobal(const u32 globalIndex) noexcept
+    { ConPrinter::PrintLn("    Push.Global {}", globalIndex); }
+
+    void VisitPushGlobalExt(const u32 globalIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Push.Global.Ext ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}", globalIndex);
+    }
+
+    void VisitPushGlobalPtr(const u32 globalIndex) noexcept
+    { ConPrinter::PrintLn("    Push.Global.Ptr {}", globalIndex); }
+
+    void VisitPushGlobalExtPtr(const u32 globalIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Push.Global.Ext.Ptr ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}", globalIndex);
+    }
+
+    void VisitPop0() noexcept
+    { ConPrinter::PrintLn("    Pop.0"); }
+
+    void VisitPop1() noexcept
+    { ConPrinter::PrintLn("    Pop.1"); }
+
+    void VisitPop2() noexcept
+    { ConPrinter::PrintLn("    Pop.2"); }
+
+    void VisitPop3() noexcept
+    { ConPrinter::PrintLn("    Pop.3"); }
+
+    void VisitPopN(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Pop.N {}", localIndex); }
+
+    void VisitPopArg0() noexcept
+    { ConPrinter::PrintLn("    Pop.Arg.0"); }
+
+    void VisitPopArg1() noexcept
+    { ConPrinter::PrintLn("    Pop.Arg.1"); }
+
+    void VisitPopArg2() noexcept
+    { ConPrinter::PrintLn("    Pop.Arg.2"); }
+
+    void VisitPopArg3() noexcept
+    { ConPrinter::PrintLn("    Pop.Arg.3"); }
+
+    void VisitPopArgN(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Pop.Arg.N {}", localIndex); }
+
+    void VisitPopPtr(const u16 localIndex) noexcept
+    { ConPrinter::PrintLn("    Pop.Ptr {}", localIndex); }
+
+    void VisitPopGlobal(const u32 globalIndex) noexcept
+    { ConPrinter::PrintLn("    Pop.Global {}", globalIndex); }
+
+    void VisitPopGlobalExt(const u32 globalIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Pop.Global.Ext ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}", globalIndex);
+    }
+
+    void VisitPopGlobalPtr(const u32 globalIndex) noexcept
+    { ConPrinter::PrintLn("    Pop.Global.Ptr {}", globalIndex); }
+
+    void VisitPopGlobalExtPtr(const u32 globalIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Pop.Global.Ext.Ptr ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}", globalIndex);
+    }
+
+    void VisitPopCount(const u16 byteCount) noexcept
+    { ConPrinter::PrintLn("    Pop.Count {}", byteCount); }
+
+    void VisitDup(const uSys byteCount) noexcept
+    { ConPrinter::PrintLn("    Dup.{}", byteCount); }
+
+    void VisitExpandSX(const uSys fromSize, const uSys toSize) noexcept
+    { ConPrinter::PrintLn("    Expand.SX.{}.{}", fromSize, toSize); }
+
+    void VisitExpandZX(const uSys fromSize, const uSys toSize) noexcept
+    { ConPrinter::PrintLn("    Expand.ZX.{}.{}", fromSize, toSize); }
+
+    void VisitTrunc(const uSys fromSize, const uSys toSize) noexcept
+    { ConPrinter::PrintLn("    Trunc.{}.{}", fromSize, toSize); }
+
+    void VisitLoad(const u16 localIndex, const u16 addressIndex) noexcept
+    { ConPrinter::PrintLn("    Load {}, {}", localIndex, addressIndex); }
+
+    void VisitLoadGlobal(const u32 globalIndex, const u16 addressIndex) noexcept
+    { ConPrinter::PrintLn("    Load.Global {}, {}", globalIndex, addressIndex); }
+
+    void VisitLoadGlobalExt(const u32 globalIndex, const u16 addressIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Load.Global.Ext ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}, {}", globalIndex, addressIndex);
+    }
+
+    void VisitStore(const u16 localIndex, const u16 addressIndex) noexcept
+    { ConPrinter::PrintLn("    Store {}, {}", localIndex, addressIndex); }
+
+    void VisitStoreGlobal(const u32 globalIndex, const u16 addressIndex) noexcept
+    { ConPrinter::PrintLn("    Store.Global {}, {}", globalIndex, addressIndex); }
+
+    void VisitStoreGlobalExt(const u32 globalIndex, const u16 addressIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Store.Global.Ext ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":{}, {}", globalIndex, addressIndex);
+    }
+
+    void VisitConst0() noexcept
+    { ConPrinter::PrintLn("    Const.0"); }
+
+    void VisitConst1() noexcept
+    { ConPrinter::PrintLn("    Const.1"); }
+
+    void VisitConst2() noexcept
+    { ConPrinter::PrintLn("    Const.2"); }
+
+    void VisitConst3() noexcept
+    { ConPrinter::PrintLn("    Const.3"); }
+
+    void VisitConst4() noexcept
+    { ConPrinter::PrintLn("    Const.4"); }
+
+    void VisitConstFF() noexcept
+    { ConPrinter::PrintLn("    Const.FF"); }
+
+    void VisitConst7F() noexcept
+    { ConPrinter::PrintLn("    Const.7F"); }
+
+    void VisitConstN(const u32 constant) noexcept
+    { ConPrinter::PrintLn("    Const.N {}", constant); }
+
+    void VisitAddI32() noexcept
+    { ConPrinter::PrintLn("    Add.i32"); }
+
+    void VisitAddI64() noexcept
+    { ConPrinter::PrintLn("    Add.i64"); }
+
+    void VisitSubI32() noexcept
+    { ConPrinter::PrintLn("    Sub.i32"); }
+
+    void VisitSubI64() noexcept
+    { ConPrinter::PrintLn("    Sub.i64"); }
+
+    void VisitMulI32() noexcept
+    { ConPrinter::PrintLn("    Mul.i32"); }
+
+    void VisitMulI64() noexcept
+    { ConPrinter::PrintLn("    Mul.i64"); }
+
+    void VisitDivI32() noexcept
+    { ConPrinter::PrintLn("    Div.i32"); }
+
+    void VisitDivI64() noexcept
+    { ConPrinter::PrintLn("    Div.i64"); }
+
+    void VisitCompI32Above() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.Above"); }
+
+    void VisitCompI32AboveOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.AboveOrEqual"); }
+
+    void VisitCompI32Below() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.Below"); }
+
+    void VisitCompI32BelowOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.BelowOrEqual"); }
+
+    void VisitCompI32Greater() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.Greater"); }
+
+    void VisitCompI32GreaterOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.GreaterOrEqual"); }
+
+    void VisitCompI32Less() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.Less"); }
+
+    void VisitCompI32LessOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.LessOrEqual"); }
+
+    void VisitCompI32NotEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i32.NotEqual"); }
+
+    void VisitCompI64Above() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.Above"); }
+
+    void VisitCompI64AboveOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.AboveOrEqual"); }
+
+    void VisitCompI64Below() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.Below"); }
+
+    void VisitCompI64BelowOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.BelowOrEqual"); }
+
+    void VisitCompI64Greater() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.Greater"); }
+
+    void VisitCompI64GreaterOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.GreaterOrEqual"); }
+
+    void VisitCompI64Less() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.Less"); }
+
+    void VisitCompI64LessOrEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.LessOrEqual"); }
+
+    void VisitCompI64NotEqual() noexcept
+    { ConPrinter::PrintLn("    Comp.i64.NotEqual"); }
+
+    void VisitCall(const u32 functionIndex) noexcept
+    { ConPrinter::PrintLn("    Call <Func{}>", functionIndex); }
+
+    void VisitCallExt(const u32 functionIndex, const u16 moduleIndex) noexcept
+    {
+        ConPrinter::Print("    Call.Ext ");
+
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+
+        ConPrinter::PrintLn(":<Func{}>", functionIndex);
+    }
+
+    void VisitCallInd() noexcept
+    { ConPrinter::PrintLn("    Call.Ind"); }
+
+    void VisitRet() noexcept
+    { ConPrinter::PrintLn("    Ret"); }
+
+    void VisitJump(const i32 offset) noexcept
+    {
+        const iSys labelIndex = ShouldPlaceLabel(m_CurrCodePtr + 5 + offset);
+        ConPrinter::PrintLn("    Jump .L{}", labelIndex);
+    }
+
+    void VisitJumpTrue(const i32 offset) noexcept
+    {
+        const iSys labelIndex = ShouldPlaceLabel(m_CurrCodePtr + 5 + offset);
+        ConPrinter::PrintLn("    Jump.True .L{}", labelIndex);
+    }
+
+    void VisitJumpFalse(const i32 offset) noexcept
+    {
+        const iSys labelIndex = ShouldPlaceLabel(m_CurrCodePtr + 5 + offset);
+        ConPrinter::PrintLn("    Jump.False .L{}", labelIndex);
+    }
+private:
+    [[nodiscard]] iSys ShouldPlaceLabel(const u8* const codePtr) noexcept
+    {
+        for(uSys i = 0; i < m_Labels.Count(); ++i)
+        {
+            if(m_Labels[i] == codePtr)
+            {
+                return static_cast<iSys>(i);
+            }
+        }
+
+        return -1;
+    }
+
+    [[nodiscard]] const ::std::vector<Ref<Module>>& Modules() const noexcept { return *m_Modules; }
+private:
+    DynArray<const u8*> m_Labels;
+    const ::std::vector<Ref<Module>>* m_Modules;
+    const u8* m_CurrCodePtr;
+};
 
 void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ::std::vector<Ref<Module>>& modules) noexcept
 {
-    const u8* codePtr = function->Address();
-
     ConPrinter::Print("Func{}:\n", functionIndex);
 
     const DynArray<const u8*> labels = PreProcessFunction(function);
 
-    while(true)
-    {
-        {
-            iSys labelIndex = ShouldPlaceLabel(labels, codePtr);
-            if(labelIndex != -1)
-            {
-                ConPrinter::PrintLn("  .{}:", labelIndex);
-            }
-        }
-        
-        u16 opcodeRaw = *codePtr;
-        ++codePtr;
-
-        // Read Second Byte
-        if(opcodeRaw & 0x80)
-        {
-            opcodeRaw <<= 8;
-            opcodeRaw |= *codePtr;
-            ++codePtr;
-        }
-
-        const Opcode opcode = static_cast<Opcode>(opcodeRaw);
-
-        if(opcode == Opcode::Ret)
-        {
-            ConPrinter::Print("    Ret\n");
-            break;
-        }
-
-        switch(opcode)
-        {
-            case Opcode::Nop:
-                ConPrinter::PrintLn("    Nop");
-                break;
-            case Opcode::Push0:
-                ConPrinter::PrintLn("    Push.0");
-                break;
-            case Opcode::Push1:
-                ConPrinter::PrintLn("    Push.1");
-                break;
-            case Opcode::Push2:
-                ConPrinter::PrintLn("    Push.2");
-                break;
-            case Opcode::Push3:
-                ConPrinter::PrintLn("    Push.3");
-                break;
-            case Opcode::PushN:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.N {}", localIndex);
-                break;
-            }
-            case Opcode::PushArg0:
-                ConPrinter::PrintLn("    Push.Arg.0");
-                break;
-            case Opcode::PushArg1:
-                ConPrinter::PrintLn("    Push.Arg.1");
-                break;
-            case Opcode::PushArg2:
-                ConPrinter::PrintLn("    Push.Arg.2");
-                break;
-            case Opcode::PushArg3:
-                ConPrinter::PrintLn("    Push.Arg.3");
-                break;
-            case Opcode::PushArgN:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Arg.N {}", localIndex);
-                break;
-            }
-            case Opcode::PushPtr:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Ptr {}", localIndex);
-                break;
-            }
-            case Opcode::PushGlobal:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Global {}", globalIndex);
-                break;
-            }
-            case Opcode::PushGlobalExt:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Global.Ext {}, {}", globalIndex, moduleIndex);
-                break;
-            }
-            case Opcode::PushGlobalPtr:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Global.Ptr {}", globalIndex);
-                break;
-            }
-            case Opcode::PushGlobalExtPtr:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Push.Global.Ext.Ptr {}, {}", globalIndex, moduleIndex);
-                break;
-            }
-            case Opcode::Pop0:
-                ConPrinter::PrintLn("    Pop.0");
-                break;
-            case Opcode::Pop1:
-                ConPrinter::PrintLn("    Pop.1");
-                break;
-            case Opcode::Pop2:
-                ConPrinter::PrintLn("    Pop.2");
-                break;
-            case Opcode::Pop3:
-                ConPrinter::PrintLn("    Pop.3");
-                break;
-            case Opcode::PopN:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.N {}", localIndex);
-                break;
-            }
-            case Opcode::PopArg0:
-                ConPrinter::PrintLn("    Pop.Arg.0");
-                break;
-            case Opcode::PopArg1:
-                ConPrinter::PrintLn("    Pop.Arg.1");
-                break;
-            case Opcode::PopArg2:
-                ConPrinter::PrintLn("    Pop.Arg.2");
-                break;
-            case Opcode::PopArg3:
-                ConPrinter::PrintLn("    Pop.Arg.3");
-                break;
-            case Opcode::PopArgN:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Arg.N {}", localIndex);
-                break;
-            }
-            case Opcode::PopPtr:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Ptr {}", localIndex);
-                break;
-            }
-            case Opcode::PopGlobal:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Global {}", globalIndex);
-                break;
-            }
-            case Opcode::PopGlobalExt:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Global.Ext {}, {}", globalIndex, moduleIndex);
-                break;
-            }
-            case Opcode::PopGlobalPtr:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Global.Ptr {}", globalIndex);
-                break;
-            }
-            case Opcode::PopGlobalExtPtr:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Global.Ext.Ptr {}, {}", globalIndex, moduleIndex);
-                break;
-            }
-            case Opcode::PopCount:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Pop.Count {}", localIndex);
-                break;
-            }
-            case Opcode::Dup1:
-                ConPrinter::PrintLn("    Dup.1");
-                break;
-            case Opcode::Dup2:
-                ConPrinter::PrintLn("    Dup.2");
-                break;
-            case Opcode::Dup4:
-                ConPrinter::PrintLn("    Dup.4");
-                break;
-            case Opcode::Dup8:
-                ConPrinter::PrintLn("    Dup.8");
-                break;
-            case Opcode::ExpandSX12:
-                ConPrinter::PrintLn("    Expand.SX.1.2");
-                break;
-            case Opcode::ExpandSX14:
-                ConPrinter::PrintLn("    Expand.SX.1.4");
-                break;
-            case Opcode::ExpandSX18:
-                ConPrinter::PrintLn("    Expand.SX.1.8");
-                break;
-            case Opcode::ExpandSX24:
-                ConPrinter::PrintLn("    Expand.SX.2.4");
-                break;
-            case Opcode::ExpandSX28:
-                ConPrinter::PrintLn("    Expand.SX.2.8");
-                break;
-            case Opcode::ExpandSX48:
-                ConPrinter::PrintLn("    Expand.SX.4.8");
-                break;
-            case Opcode::ExpandZX12:
-                ConPrinter::PrintLn("    Expand.ZX.1.2");
-                break;
-            case Opcode::ExpandZX14:
-                ConPrinter::PrintLn("    Expand.ZX.1.4");
-                break;
-            case Opcode::ExpandZX18:
-                ConPrinter::PrintLn("    Expand.ZX.1.8");
-                break;
-            case Opcode::ExpandZX24:
-                ConPrinter::PrintLn("    Expand.ZX.2.4");
-                break;
-            case Opcode::ExpandZX28:
-                ConPrinter::PrintLn("    Expand.ZX.2.8");
-                break;
-            case Opcode::ExpandZX48:
-                ConPrinter::PrintLn("    Expand.ZX.4.8");
-                break;
-            case Opcode::Trunc84:
-                ConPrinter::PrintLn("    Trunc.8.4");
-                break;
-            case Opcode::Trunc82:
-                ConPrinter::PrintLn("    Trunc.8.2");
-                break;
-            case Opcode::Trunc81:
-                ConPrinter::PrintLn("    Trunc.8.1");
-                break;
-            case Opcode::Trunc42:
-                ConPrinter::PrintLn("    Trunc.4.2");
-                break;
-            case Opcode::Trunc41:
-                ConPrinter::PrintLn("    Trunc.4.1");
-                break;
-            case Opcode::Trunc21:
-                ConPrinter::PrintLn("    Trunc.2.1");
-                break;
-            case Opcode::Load:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Load {}, {}", localIndex, addressIndex);
-                break;
-            }
-            case Opcode::LoadGlobal:
-            {
-                const u32 globalIndex = ReadCodeValue<u16>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Load.Global {}, {}", globalIndex, addressIndex);
-                break;
-            }
-            case Opcode::LoadGlobalExt:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Load.Global.Ext {}, {}, {}", globalIndex, addressIndex, moduleIndex);
-                break;
-            }
-            case Opcode::Store:
-            {
-                const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Store {}, {}", localIndex, addressIndex);
-                break;
-            }
-            case Opcode::StoreGlobal:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::PrintLn("    Store.Global {}, {}", globalIndex, addressIndex);
-                break;
-            }
-            case Opcode::StoreGlobalExt:
-            {
-                const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                ConPrinter::Print("    Store.Global.Ext {}, {}, {}", globalIndex, addressIndex, moduleIndex);
-                break;
-            }
-            case Opcode::Const0:
-                ConPrinter::PrintLn("    Const.0");
-                break;
-            case Opcode::Const1:
-                ConPrinter::PrintLn("    Const.1");
-                break;
-            case Opcode::Const2:
-                ConPrinter::PrintLn("    Const.2");
-                break;
-            case Opcode::Const3:
-                ConPrinter::PrintLn("    Const.3");
-                break;
-            case Opcode::Const4:
-                ConPrinter::PrintLn("    Const.4");
-                break;
-            case Opcode::ConstFF:
-                ConPrinter::PrintLn("    Const.FF");
-                break;
-            case Opcode::Const7F:
-                ConPrinter::PrintLn("    Const.7F");
-                break;
-            case Opcode::ConstN:
-            {
-                const u32 constant = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Const.N {}", constant);
-                break;
-            }
-            case Opcode::AddI32:
-                ConPrinter::PrintLn("    Add.i32");
-                break;
-            case Opcode::AddI64:
-                ConPrinter::PrintLn("    Add.i64");
-                break;
-            case Opcode::SubI32:
-                ConPrinter::PrintLn("    Sub.i32");
-                break;
-            case Opcode::SubI64:
-                ConPrinter::PrintLn("    Sub.i64");
-                break;
-            case Opcode::MulI32:
-                ConPrinter::PrintLn("    Mul.i32");
-                break;
-            case Opcode::MulI64:
-                ConPrinter::PrintLn("    Mul.i64");
-                break;
-            case Opcode::DivI32:
-                ConPrinter::PrintLn("    Div.i32");
-                break;
-            case Opcode::DivI64:
-                ConPrinter::PrintLn("    Div.i64");
-                break;
-            case Opcode::CompI32Above:
-                ConPrinter::PrintLn("    Comp.i32.Above");
-                break;
-            case Opcode::CompI32AboveOrEqual:
-                ConPrinter::PrintLn("    Comp.i32.AboveOrEqual");
-                break;
-            case Opcode::CompI32Below:
-                ConPrinter::PrintLn("    Comp.i32.Below");
-                break;
-            case Opcode::CompI32BelowOrEqual:
-                ConPrinter::PrintLn("    Comp.i32.BelowOrEqual");
-                break;
-            case Opcode::CompI32Equal:
-                ConPrinter::PrintLn("    Comp.i32.Equal");
-                break;
-            case Opcode::CompI32Greater:
-                ConPrinter::PrintLn("    Comp.i32.Greater");
-                break;
-            case Opcode::CompI32GreaterOrEqual:
-                ConPrinter::PrintLn("    Comp.i32.GreaterOrEqual");
-                break;
-            case Opcode::CompI32Less:
-                ConPrinter::PrintLn("    Comp.i32.Less");
-                break;
-            case Opcode::CompI32LessOrEqual:
-                ConPrinter::PrintLn("    Comp.i32.LessOrEqual");
-                break;
-            case Opcode::CompI32NotEqual:
-                ConPrinter::PrintLn("    Comp.i32.NotEqual");
-                break;
-            case Opcode::CompI64Above:
-                ConPrinter::PrintLn("    Comp.i64.Above");
-                break;
-            case Opcode::CompI64AboveOrEqual:
-                ConPrinter::PrintLn("    Comp.i64.AboveOrEqual");
-                break;
-            case Opcode::CompI64Below:
-                ConPrinter::PrintLn("    Comp.i64.Below");
-                break;
-            case Opcode::CompI64BelowOrEqual:
-                ConPrinter::PrintLn("    Comp.i64.BelowOrEqual");
-                break;
-            case Opcode::CompI64Equal:
-                ConPrinter::PrintLn("    Comp.i64.Equal");
-                break;
-            case Opcode::CompI64Greater:
-                ConPrinter::PrintLn("    Comp.i64.Greater");
-                break;
-            case Opcode::CompI64GreaterOrEqual:
-                ConPrinter::PrintLn("    Comp.i64.GreaterOrEqual");
-                break;
-            case Opcode::CompI64Less:
-                ConPrinter::PrintLn("    Comp.i64.Less");
-                break;
-            case Opcode::CompI64LessOrEqual:
-                ConPrinter::PrintLn("    Comp.i64.LessOrEqual");
-                break;
-            case Opcode::CompI64NotEqual:
-                ConPrinter::PrintLn("    Comp.i64.NotEqual");
-                break;
-            case Opcode::Call:
-            {
-                const u32 targetFunctionIndex = ReadCodeValue<u32>(codePtr);
-                
-                ConPrinter::PrintLn("    Call <Func{}>", targetFunctionIndex);
-                break;
-            }
-            case Opcode::CallExt:
-            {
-                const u32 targetFunctionIndex = ReadCodeValue<u32>(codePtr);
-                const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-
-                ConPrinter::Print("    Call.Ext ");
-                
-                if(moduleIndex >= modules.size() || modules[moduleIndex]->Name().Length() == 0)
-                {
-                    ConPrinter::Print(moduleIndex);
-                }
-                else
-                {
-                    ConPrinter::Print(modules[moduleIndex]->Name());
-                }
-
-                ConPrinter::PrintLn(":<Func{}>", targetFunctionIndex);
-                break;
-            }
-            case Opcode::CallInd:
-                ConPrinter::PrintLn("    Call.Ind");
-                break;
-            case Opcode::Jump:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-
-                const iSys labelIndex = ShouldPlaceLabel(labels, codePtr + offset);
-
-                ConPrinter::PrintLn("    Jump .{}", labelIndex);
-                break;
-            }
-            case Opcode::JumpTrue:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-
-                const iSys labelIndex = ShouldPlaceLabel(labels, codePtr + offset);
-
-                ConPrinter::PrintLn("    Jump.True .{}", labelIndex);
-                break;
-            }
-            case Opcode::JumpFalse:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-
-                const iSys labelIndex = ShouldPlaceLabel(labels, codePtr + offset);
-
-                ConPrinter::PrintLn("    Jump.False .{}", labelIndex);
-                break;
-            }
-            default: break;
-        }
-    }
+    DumpVisitor dumpVisitor(labels, &modules);
+    dumpVisitor.Traverse(function);
 }
+
+class VisitorJumpCount : public BaseIrVisitor<VisitorJumpCount>
+{
+    DEFAULT_DESTRUCT(VisitorJumpCount);
+    DEFAULT_CM_PU(VisitorJumpCount);
+public:
+    VisitorJumpCount() noexcept
+        : m_JumpCount(0)
+    { }
+
+    [[nodiscard]] uSys JumpCount() const noexcept { return m_JumpCount; }
+
+    void Reset() noexcept
+    {
+        m_JumpCount = 0;
+    }
+
+    void VisitJump(const i32 offset) noexcept
+    {
+        ++m_JumpCount;
+    }
+
+    void VisitJumpTrue(const i32 offset) noexcept
+    {
+        ++m_JumpCount;
+    }
+
+    void VisitJumpFalse(const i32 offset) noexcept
+    {
+        ++m_JumpCount;
+    }
+private:
+    uSys m_JumpCount;
+};
+
+class VisitorLabeler : public BaseIrVisitor<VisitorLabeler>
+{
+    DEFAULT_DESTRUCT(VisitorLabeler);
+    DEFAULT_CM_PU(VisitorLabeler);
+public:
+    VisitorLabeler(const uSys jumpCount) noexcept
+        : m_Labels(jumpCount)
+        , m_CurrCodePtr(nullptr)
+        , m_WriteIndex(0)
+    { }
+
+    [[nodiscard]] const DynArray<const u8*>& Labels() const noexcept { return m_Labels; }
+
+    void Reset(const uSys jumpCount) noexcept
+    {
+        m_Labels = DynArray<const u8*>(jumpCount);
+        m_CurrCodePtr = nullptr;
+        m_WriteIndex = 0;
+    }
+
+    void PreVisit(const u8* const codePtr) noexcept
+    {
+        m_CurrCodePtr = codePtr;
+    }
+
+    void VisitJump(const i32 offset) noexcept
+    {
+        m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
+    }
+
+    void VisitJumpTrue(const i32 offset) noexcept
+    {
+        m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
+    }
+
+    void VisitJumpFalse(const i32 offset) noexcept
+    {
+        m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
+    }
+private:
+    DynArray<const u8*> m_Labels;
+    const u8* m_CurrCodePtr;
+    uSys m_WriteIndex;
+};
 
 static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept
 {
-    const u8* codePtr = function->Address();
+    VisitorJumpCount jumpCountVisitor;
+    jumpCountVisitor.Traverse(function);
+    
+    VisitorLabeler labelerVisitor(jumpCountVisitor.JumpCount());
+    labelerVisitor.Traverse(function);
 
-    uSys jumpCount = 0;
-
-    while(true)
-    {
-        u16 opcodeRaw = *codePtr;
-        ++codePtr;
-
-        // Read Second Byte
-        if(opcodeRaw & 0x80)
-        {
-            opcodeRaw <<= 8;
-            opcodeRaw |= *codePtr;
-            ++codePtr;
-        }
-
-        const Opcode opcode = static_cast<Opcode>(opcodeRaw);
-
-        if(opcode == Opcode::Ret)
-        {
-            break;
-        }
-
-        switch(opcode)
-        {
-            case Opcode::PushN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushArgN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushPtr:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalExtPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopArgN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopPtr:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalExtPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopCount:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Load:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::LoadGlobal:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::LoadGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Store:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::StoreGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::StoreGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::ConstN:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::Call:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::CallExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Jump:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ++jumpCount;
-                break;
-            }
-            case Opcode::JumpTrue:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ++jumpCount;
-                break;
-            }
-            case Opcode::JumpFalse:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ++jumpCount;
-                break;
-            }
-            default: break;
-        }
-    }
-
-    codePtr = function->Address();
-
-    DynArray<const u8*> labels(jumpCount);
-
-    uSys writeIndex = 0;
-
-    while(true)
-    {
-        u16 opcodeRaw = *codePtr;
-        ++codePtr;
-
-        // Read Second Byte
-        if(opcodeRaw & 0x80)
-        {
-            opcodeRaw <<= 8;
-            opcodeRaw |= *codePtr;
-            ++codePtr;
-        }
-
-        const Opcode opcode = static_cast<Opcode>(opcodeRaw);
-
-        if(opcode == Opcode::Ret)
-        {
-            break;
-        }
-
-        switch(opcode)
-        {
-            case Opcode::PushN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushArgN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushPtr:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PushGlobalExtPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopArgN:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopPtr:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::PopGlobalExtPtr:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::PopCount:
-            {
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Load:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::LoadGlobal:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::LoadGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Store:
-            {
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::StoreGlobal:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::StoreGlobalExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::ConstN:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::Call:
-            {
-                ReadCodeValue<u32>(codePtr);
-                break;
-            }
-            case Opcode::CallExt:
-            {
-                ReadCodeValue<u32>(codePtr);
-                ReadCodeValue<u16>(codePtr);
-                break;
-            }
-            case Opcode::Jump:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-                labels[writeIndex++] = codePtr + offset;
-                break;
-            }
-            case Opcode::JumpTrue:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-                labels[writeIndex++] = codePtr + offset;
-                break;
-            }
-            case Opcode::JumpFalse:
-            {
-                const i32 offset = ReadCodeValue<i32>(codePtr);
-                labels[writeIndex++] = codePtr + offset;
-                break;
-            }
-            default: break;
-        }
-    }
-
-    return labels;
+    return labelerVisitor.Labels();
 }
 
 namespace ssa {
