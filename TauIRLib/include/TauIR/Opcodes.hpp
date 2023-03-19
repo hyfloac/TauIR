@@ -105,6 +105,7 @@ enum class Opcode : u16
     Call                  = 0x001C,
     CallExt               = 0x801C,
     CallInd               = 0x801D,
+    CallIndExt            = 0x801E,
     Ret                   = 0x001D,
     Jump                  = 0x001E,
     JumpTrue              = 0x0070,

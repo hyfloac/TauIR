@@ -1,13 +1,15 @@
 #pragma once
 
 #include <Objects.hpp>
+
+#include "Common.hpp"
 #include "ssa/SsaWriter.hpp"
 
 namespace tau::ir {
 
 class Function;
-
 class TypeInfo;
+class Module;
 
 class IrToSsa
 {
@@ -17,9 +19,8 @@ public:
     using SsaFrameTracker = ssa::SsaFrameTracker;
     using VarId = ssa::VarId;
 public:
-    static SsaWriter TransformFunction(const Function* function) noexcept;
-
-private:
+    static SsaWriter TransformFunction(const Function* function, const ::std::vector<Ref<Module>>& modules, u16 currentModule) noexcept;
+public:
     static VarId PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, uSys size, ssa::SsaType ssaType);
     static VarId PopLocal(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId localIndex);
     static VarId PopArgument(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId argIndex);

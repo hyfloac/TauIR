@@ -36,7 +36,8 @@ public:
         , m_ExecutionStack(ExecutionStackSize<uSys>)
         , m_LocalsStack(LocalsStackSize<uSys>)
         , m_Arguments(MaxArgumentRegisters)
-        , m_StackPointer(0)
+        , m_ExecutionStackPointer(0)
+        , m_LocalsStackPointer(0)
     {
         (void) ::std::memset(m_ExecutionStack.arr(), 0, m_ExecutionStack.size());
         (void) ::std::memset(m_LocalsStack.arr(), 0, m_LocalsStack.size());
@@ -57,7 +58,7 @@ public:
 
     [[nodiscard]] u64 ReturnVal() const noexcept { return m_Arguments[0]; }
 private:
-    void ExecuteFunction(const Function* function, const Module* module) noexcept;
+    void Executor(const Function* function, const Module* module) noexcept;
     void PushLocal(const Function* function, uSys localsHead, u16 local) noexcept;
     void PopLocal(const Function* function, uSys localsHead, u16 local) noexcept;
     void PushArgument(uSys argument) noexcept;
@@ -88,16 +89,32 @@ private:
     template<typename T>
     void PushValue(const T value) noexcept
     {
-        (void) ::std::memcpy(m_ExecutionStack.arr() + m_StackPointer, &value, sizeof(T));
-        m_StackPointer += sizeof(T);
+        (void) ::std::memcpy(m_ExecutionStack.arr() + m_ExecutionStackPointer, &value, sizeof(T));
+        m_ExecutionStackPointer += sizeof(T);
     }
 
     template<typename T>
     T PopValue() noexcept
     {
         T ret;
-        m_StackPointer -= sizeof(T);
-        (void) ::std::memcpy(&ret, m_ExecutionStack.arr() + m_StackPointer, sizeof(T));
+        m_ExecutionStackPointer -= sizeof(T);
+        (void) ::std::memcpy(&ret, m_ExecutionStack.arr() + m_ExecutionStackPointer, sizeof(T));
+        return ret;
+    }
+
+    template<typename T>
+    void PushValueLocal(const T value) noexcept
+    {
+        (void) ::std::memcpy(m_LocalsStack.arr() + m_LocalsStackPointer, &value, sizeof(T));
+        m_LocalsStackPointer += sizeof(T);
+    }
+
+    template<typename T>
+    T PopValueLocal() noexcept
+    {
+        T ret;
+        m_LocalsStackPointer -= sizeof(T);
+        (void) ::std::memcpy(&ret, m_LocalsStack.arr() + m_LocalsStackPointer, sizeof(T));
         return ret;
     }
 
@@ -114,7 +131,8 @@ private:
     DynArray<u8> m_ExecutionStack;
     DynArray<u8> m_LocalsStack;
     DynArray<ArgumentRegisterType> m_Arguments;
-    uSys m_StackPointer;
+    uSys m_ExecutionStackPointer;
+    uSys m_LocalsStackPointer;
 };
 
 }

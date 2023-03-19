@@ -4,21 +4,23 @@
 #include "IrVisitor.hpp"
 #endif
 
-#include "TauIR/Function.hpp"
 #include "TauIR/Opcodes.hpp"
 
 namespace tau::ir {
 
-#define SIMPLE_TRAVERSE(OPCODE) case Opcode::OPCODE: Traverse##OPCODE(); break
+#define SIMPLE_TRAVERSE(OPCODE) case Opcode::OPCODE: GetDerived().Visit##OPCODE(); break
 
 template<typename Derived>
-void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcept
+void BaseIrVisitor<Derived>::Traverse(const u8* codePtr, const u8* const endPtr) noexcept
 {
-    const u8* codePtr = function->Address();
-
     while(true)
     {
-        PreTraverse(codePtr);
+        if(codePtr >= endPtr)
+        {
+            return;
+        }
+
+        GetDerived().PreVisit(codePtr);
 
         u16 opcodeRaw = *codePtr;
         ++codePtr;
@@ -33,12 +35,6 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
 
         const Opcode opcode = static_cast<Opcode>(opcodeRaw);
 
-        if(opcode == Opcode::Ret)
-        {
-            TraverseRet();
-            break;
-        }
-
         switch(opcode)
         {
             SIMPLE_TRAVERSE(Nop);
@@ -49,7 +45,7 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::PushN:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePushN(localIndex);
+                GetDerived().VisitPushN(localIndex);
                 break;
             }
             SIMPLE_TRAVERSE(PushArg0);
@@ -59,39 +55,39 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::PushArgN:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePushArgN(localIndex);
+                GetDerived().VisitPushArgN(localIndex);
                 break;
             }
             case Opcode::PushPtr:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePushPtr(localIndex);
+                GetDerived().VisitPushPtr(localIndex);
                 break;
             }
             case Opcode::PushGlobal:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                TraversePushGlobal(globalIndex);
+                GetDerived().VisitPushGlobal(globalIndex);
                 break;
             }
             case Opcode::PushGlobalExt:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraversePushGlobalExt(globalIndex, moduleIndex);
+                GetDerived().VisitPushGlobalExt(globalIndex, moduleIndex);
                 break;
             }
             case Opcode::PushGlobalPtr:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                TraversePushGlobalPtr(globalIndex);
+                GetDerived().VisitPushGlobalPtr(globalIndex);
                 break;
             }
             case Opcode::PushGlobalExtPtr:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraversePushGlobalExtPtr(globalIndex, moduleIndex);
+                GetDerived().VisitPushGlobalExtPtr(globalIndex, moduleIndex);
                 break;
             }
             SIMPLE_TRAVERSE(Pop0);
@@ -101,7 +97,7 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::PopN:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePopN(localIndex);
+                GetDerived().VisitPopN(localIndex);
                 break;
             }
             SIMPLE_TRAVERSE(PopArg0);
@@ -111,45 +107,45 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::PopArgN:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePopArgN(localIndex);
+                GetDerived().VisitPopArgN(localIndex);
                 break;
             }
             case Opcode::PopPtr:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
-                TraversePopPtr(localIndex);
+                GetDerived().VisitPopPtr(localIndex);
                 break;
             }
             case Opcode::PopGlobal:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                TraversePopGlobal(globalIndex);
+                GetDerived().VisitPopGlobal(globalIndex);
                 break;
             }
             case Opcode::PopGlobalExt:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraversePopGlobalExt(globalIndex, moduleIndex);
+                GetDerived().VisitPopGlobalExt(globalIndex, moduleIndex);
                 break;
             }
             case Opcode::PopGlobalPtr:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
-                TraversePopGlobalPtr(globalIndex);
+                GetDerived().VisitPopGlobalPtr(globalIndex);
                 break;
             }
             case Opcode::PopGlobalExtPtr:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraversePopGlobalExtPtr(globalIndex, moduleIndex);
+                GetDerived().VisitPopGlobalExtPtr(globalIndex, moduleIndex);
                 break;
             }
             case Opcode::PopCount:
             {
                 const u16 byteCount = ReadCodeValue<u16>(codePtr);
-                TraversePopCount(byteCount);
+                GetDerived().VisitPopCount(byteCount);
                 break;
             }
             SIMPLE_TRAVERSE(Dup1);
@@ -178,14 +174,14 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                TraverseLoad(localIndex, addressIndex);
+                GetDerived().VisitLoad(localIndex, addressIndex);
                 break;
             }
             case Opcode::LoadGlobal:
             {
                 const u32 globalIndex = ReadCodeValue<u16>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                TraverseLoadGlobal(globalIndex, addressIndex);
+                GetDerived().VisitLoadGlobal(globalIndex, addressIndex);
                 break;
             }
             case Opcode::LoadGlobalExt:
@@ -193,21 +189,21 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraverseLoadGlobalExt(globalIndex, addressIndex, moduleIndex);
+                GetDerived().VisitLoadGlobalExt(globalIndex, addressIndex, moduleIndex);
                 break;
             }
             case Opcode::Store:
             {
                 const u16 localIndex = ReadCodeValue<u16>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                TraverseStore(localIndex, addressIndex);
+                GetDerived().VisitStore(localIndex, addressIndex);
                 break;
             }
             case Opcode::StoreGlobal:
             {
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
-                TraverseStoreGlobal(globalIndex, addressIndex);
+                GetDerived().VisitStoreGlobal(globalIndex, addressIndex);
                 break;
             }
             case Opcode::StoreGlobalExt:
@@ -215,7 +211,7 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
                 const u32 globalIndex = ReadCodeValue<u32>(codePtr);
                 const u16 addressIndex = ReadCodeValue<u16>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraverseStoreGlobalExt(globalIndex, addressIndex, moduleIndex);
+                GetDerived().VisitStoreGlobalExt(globalIndex, addressIndex, moduleIndex);
                 break;
             }
             SIMPLE_TRAVERSE(Const0);
@@ -228,7 +224,7 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::ConstN:
             {
                 const u32 constant = ReadCodeValue<u32>(codePtr);
-                TraverseConstN(constant);
+                GetDerived().VisitConstN(constant);
                 break;
             }
             SIMPLE_TRAVERSE(AddI32);
@@ -262,33 +258,35 @@ void BaseIrVisitor<Derived>::Traverse(const tau::ir::Function* function) noexcep
             case Opcode::Call:
             {
                 const u32 targetFunctionIndex = ReadCodeValue<u32>(codePtr);
-                TraverseCall(targetFunctionIndex);
+                GetDerived().VisitCall(targetFunctionIndex);
                 break;
             }
             case Opcode::CallExt:
             {
                 const u32 targetFunctionIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                TraverseCallExt(targetFunctionIndex, moduleIndex);
+                GetDerived().VisitCallExt(targetFunctionIndex, moduleIndex);
                 break;
             }
             SIMPLE_TRAVERSE(CallInd);
+            SIMPLE_TRAVERSE(CallIndExt);
+            SIMPLE_TRAVERSE(Ret);
             case Opcode::Jump:
             {
                 const i32 offset = ReadCodeValue<i32>(codePtr);
-                TraverseJump(offset);
+                GetDerived().VisitJump(offset);
                 break;
             }
             case Opcode::JumpTrue:
             {
                 const i32 offset = ReadCodeValue<i32>(codePtr);
-                TraverseJumpTrue(offset);
+                GetDerived().VisitJumpTrue(offset);
                 break;
             }
             case Opcode::JumpFalse:
             {
                 const i32 offset = ReadCodeValue<i32>(codePtr);
-                TraverseJumpFalse(offset);
+                GetDerived().VisitJumpFalse(offset);
                 break;
             }
             default: break;

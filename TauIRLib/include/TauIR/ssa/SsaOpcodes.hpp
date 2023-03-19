@@ -43,7 +43,8 @@ enum class SsaOpcode : u16
     Call            = 0x0042,
     CallExt         = 0x0043,
     CallInd         = 0x0044,
-    Ret             = 0x0045,
+    CallIndExt      = 0x0045,
+    Ret             = 0x0046,
 };
 
 }

@@ -258,7 +258,7 @@ public:
 	{
 		if((var & 0x80000000) != 0 || m_Linkages[var].IsVar())
 		{
-			m_NewVarMap[newVar] = m_Writer.WriteExpandSX(newType, oldType, FindSourceVar(var));
+			m_NewVarMap[newVar] = m_Writer.WriteTrunc(newType, oldType, FindSourceVar(var));
 		}
 		else
 		{
@@ -585,6 +585,50 @@ public:
 
 		return true;
 	}
+
+	bool VisitCall(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount) noexcept
+	{
+		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
+
+		m_NewVarMap[newVar] = m_Writer.WriteCall(functionIndex, source, parameterCount);
+
+	    return true;
+	}
+
+	bool VisitCallExt(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount, const u16 moduleIndex) noexcept
+	{
+		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
+
+		m_NewVarMap[newVar] = m_Writer.WriteCallExt(functionIndex, source, parameterCount, moduleIndex);
+		
+	    return true;
+	}
+
+	bool VisitCallInd(const VarId newVar, const VarId functionPointer, const VarId baseIndex, const u32 parameterCount) noexcept
+	{
+		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
+
+		m_NewVarMap[newVar] = m_Writer.WriteCallInd(functionPointer, source, parameterCount);
+
+	    return true;
+	}
+
+	bool VisitCallIndExt(const VarId newVar, const VarId functionPointer, const VarId baseIndex, const u32 parameterCount, const VarId modulePointer) noexcept
+	{
+		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
+
+		m_NewVarMap[newVar] = m_Writer.WriteCallIndExt(functionPointer, source, parameterCount, modulePointer);
+
+	    return true;
+	}
+
+	bool VisitRet(const SsaCustomType returnType, const VarId var) noexcept
+	{
+		const VarId source = FindSourceVar(var);
+
+		m_Writer.WriteRet(returnType, source);
+	    return true;
+	}
 private:
 	template<typename TOut, typename TIn>
 	void TransformType(const void* const buffer, const VarId newVar, const SsaCustomType newType) noexcept
@@ -843,6 +887,47 @@ private:
 					break;
 				default:
 					break;
+			}
+		}
+	}
+
+	u32 HandleCall(const u32 newVar, const u32 baseIndex, const u32 parameterCount) noexcept
+	{
+		m_Linkages[newVar] = internal::ConstantPropLinkage(newVar);
+
+		if(parameterCount == 1)
+		{
+			const VarId source = FindSourceVar(baseIndex);
+
+			return source;
+		}
+		else
+		{
+			const VarId baseSource = FindSourceVar(baseIndex);
+
+			bool isSequentialSources = true;
+
+			for(u32 i = 1; i < parameterCount; ++i)
+			{
+				if(FindSourceVar(baseIndex + i) != baseSource + i)
+				{
+					isSequentialSources = false;
+					break;
+				}
+			}
+
+			if(isSequentialSources)
+			{
+				return baseSource;
+			}
+			else
+			{
+				for(u32 i = baseIndex; i < baseIndex + parameterCount; ++i)
+				{
+					m_Linkages[i] = internal::ConstantPropLinkage(i);
+				}
+
+				return baseIndex;
 			}
 		}
 	}

@@ -11,65 +11,106 @@
 
 namespace tau::ir {
 
-static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept;
+#define VISIT_PRINT_0(OPCODE)                \
+    void Visit##OPCODE() noexcept {          \
+        ConPrinter::PrintLn("    " #OPCODE); \
+    }
 
-class DumpVisitor : public BaseIrVisitor<DumpVisitor>
+#define VISIT_PRINT_1(OPCODE, OP0)                    \
+    void Visit##OPCODE##OP0() noexcept {              \
+        ConPrinter::PrintLn("    " #OPCODE "." #OP0); \
+    }
+
+#define VISIT_PRINT_2(OPCODE, OP0, OP1)                        \
+    void Visit##OPCODE##OP0##OP1() noexcept {                  \
+        ConPrinter::PrintLn("    " #OPCODE "." #OP0 "." #OP1); \
+    }
+
+#define VISIT_PRINT_0_I32(OPCODE)                   \
+    void Visit##OPCODE##I32() noexcept {            \
+        ConPrinter::PrintLn("    " #OPCODE ".i32"); \
+    }
+
+#define VISIT_PRINT_0_I64(OPCODE)                   \
+    void Visit##OPCODE##I64() noexcept {            \
+        ConPrinter::PrintLn("    " #OPCODE ".i64"); \
+    }
+
+#define VISIT_PRINT_1_I32(OPCODE, OP0)                       \
+    void Visit##OPCODE##I32##OP0() noexcept {                \
+        ConPrinter::PrintLn("    " #OPCODE ".i32" "." #OP0); \
+    }
+
+#define VISIT_PRINT_1_I64(OPCODE, OP0)                       \
+    void Visit##OPCODE##I64##OP0() noexcept {                \
+        ConPrinter::PrintLn("    " #OPCODE ".i64" "." #OP0); \
+    }
+
+class DumpVisitor final : public BaseIrVisitor<DumpVisitor>
 {
     DEFAULT_DESTRUCT(DumpVisitor);
     DEFAULT_CM_PU(DumpVisitor);
 public:
-    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules) noexcept
+    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
         : m_Labels(labels)
         , m_Modules(modules)
         , m_CurrCodePtr(nullptr)
+        , m_CurrentModule(currentModule)
     { }
 
-    // DumpVisitor(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules) noexcept
+    // DumpVisitor(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules, const u16 currentModule) noexcept
     //     : m_Labels(labels)
     //     , m_Modules(::std::move(modules))
     //     , m_CurrCodePtr(nullptr)
+    //     , m_CurrentModule(currentModule)
     // { }
     //
-    // DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules) noexcept
+    // DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
     //     : m_Labels(::std::move(labels))
     //     , m_Modules(modules)
     //     , m_CurrCodePtr(nullptr)
+    //     , m_CurrentModule(currentModule)
     // { }
     
-    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>* modules) noexcept
+    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
         : m_Labels(::std::move(labels))
         , m_Modules(::std::move(modules))
         , m_CurrCodePtr(nullptr)
+        , m_CurrentModule(currentModule)
     { }
 
-    void Reset(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules) noexcept
+    void Reset(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
     {
         m_Labels = labels;
         m_Modules = modules;
         m_CurrCodePtr = nullptr;
+        m_CurrentModule = currentModule;
     }
     
-    // void Reset(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules) noexcept
+    // void Reset(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules, const u16 currentModule) noexcept
     // {
     //     m_Labels = labels;
     //     m_Modules = ::std::move(modules);
     //     m_CurrCodePtr = nullptr;
+    //     m_CurrentModule = currentModule;
     // }
     //
-    // void Reset(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules) noexcept
+    // void Reset(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
     // {
     //     m_Labels = ::std::move(labels);
     //     // m_Modules = modules;
     //     m_CurrCodePtr = nullptr;
+    //     m_CurrentModule = currentModule;
     // }
     
-    void Reset(DynArray<const u8*>&& labels, ::std::vector<Ref<Module>>* modules) noexcept
+    void Reset(DynArray<const u8*>&& labels, ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
     {
         m_Labels = ::std::move(labels);
         m_Modules = ::std::move(modules);
         m_CurrCodePtr = nullptr;
+        m_CurrentModule = currentModule;
     }
-
+public:
     void PreVisit(const u8* const codePtr) noexcept
     {
         const iSys labelIndex = ShouldPlaceLabel(codePtr);
@@ -81,36 +122,20 @@ public:
         m_CurrCodePtr = codePtr;
     }
 
-    void VisitNop() noexcept
-    { ConPrinter::PrintLn("    Nop"); }
-
-    void VisitPush0() noexcept
-    { ConPrinter::PrintLn("    Push.0"); }
-
-    void VisitPush1() noexcept
-    { ConPrinter::PrintLn("    Push.1"); }
-
-    void VisitPush2() noexcept
-    { ConPrinter::PrintLn("    Push.2"); }
-
-    void VisitPush3() noexcept
-    { ConPrinter::PrintLn("    Push.3"); }
+    VISIT_PRINT_0(Nop);
+    VISIT_PRINT_1(Push, 0);
+    VISIT_PRINT_1(Push, 1);
+    VISIT_PRINT_1(Push, 2);
+    VISIT_PRINT_1(Push, 3);
 
     void VisitPushN(const u16 localIndex) noexcept
     { ConPrinter::PrintLn("    Push.N {}", localIndex); }
 
-    void VisitPushArg0() noexcept
-    { ConPrinter::PrintLn("    Push.Arg.0"); }
-
-    void VisitPushArg1() noexcept
-    { ConPrinter::PrintLn("    Push.Arg.1"); }
-
-    void VisitPushArg2() noexcept
-    { ConPrinter::PrintLn("    Push.Arg.2"); }
-
-    void VisitPushArg3() noexcept
-    { ConPrinter::PrintLn("    Push.Arg.3"); }
-
+    VISIT_PRINT_2(Push, Arg, 0);
+    VISIT_PRINT_2(Push, Arg, 1);
+    VISIT_PRINT_2(Push, Arg, 2);
+    VISIT_PRINT_2(Push, Arg, 3);
+    
     void VisitPushArgN(const u16 localIndex) noexcept
     { ConPrinter::PrintLn("    Push.Arg.N {}", localIndex); }
 
@@ -123,16 +148,7 @@ public:
     void VisitPushGlobalExt(const u32 globalIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Push.Global.Ext ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}", globalIndex);
     }
 
@@ -142,45 +158,22 @@ public:
     void VisitPushGlobalExtPtr(const u32 globalIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Push.Global.Ext.Ptr ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}", globalIndex);
     }
 
-    void VisitPop0() noexcept
-    { ConPrinter::PrintLn("    Pop.0"); }
-
-    void VisitPop1() noexcept
-    { ConPrinter::PrintLn("    Pop.1"); }
-
-    void VisitPop2() noexcept
-    { ConPrinter::PrintLn("    Pop.2"); }
-
-    void VisitPop3() noexcept
-    { ConPrinter::PrintLn("    Pop.3"); }
+    VISIT_PRINT_1(Pop, 0);
+    VISIT_PRINT_1(Pop, 1);
+    VISIT_PRINT_1(Pop, 2);
+    VISIT_PRINT_1(Pop, 3);
 
     void VisitPopN(const u16 localIndex) noexcept
     { ConPrinter::PrintLn("    Pop.N {}", localIndex); }
 
-    void VisitPopArg0() noexcept
-    { ConPrinter::PrintLn("    Pop.Arg.0"); }
-
-    void VisitPopArg1() noexcept
-    { ConPrinter::PrintLn("    Pop.Arg.1"); }
-
-    void VisitPopArg2() noexcept
-    { ConPrinter::PrintLn("    Pop.Arg.2"); }
-
-    void VisitPopArg3() noexcept
-    { ConPrinter::PrintLn("    Pop.Arg.3"); }
+    VISIT_PRINT_2(Pop, Arg, 0);
+    VISIT_PRINT_2(Pop, Arg, 1);
+    VISIT_PRINT_2(Pop, Arg, 2);
+    VISIT_PRINT_2(Pop, Arg, 3);
 
     void VisitPopArgN(const u16 localIndex) noexcept
     { ConPrinter::PrintLn("    Pop.Arg.N {}", localIndex); }
@@ -194,16 +187,7 @@ public:
     void VisitPopGlobalExt(const u32 globalIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Pop.Global.Ext ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}", globalIndex);
     }
 
@@ -213,16 +197,7 @@ public:
     void VisitPopGlobalExtPtr(const u32 globalIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Pop.Global.Ext.Ptr ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}", globalIndex);
     }
 
@@ -250,16 +225,7 @@ public:
     void VisitLoadGlobalExt(const u32 globalIndex, const u16 addressIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Load.Global.Ext ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}, {}", globalIndex, addressIndex);
     }
 
@@ -272,145 +238,69 @@ public:
     void VisitStoreGlobalExt(const u32 globalIndex, const u16 addressIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Store.Global.Ext ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
+        PrintModule(moduleIndex);
         ConPrinter::PrintLn(":{}, {}", globalIndex, addressIndex);
     }
 
-    void VisitConst0() noexcept
-    { ConPrinter::PrintLn("    Const.0"); }
-
-    void VisitConst1() noexcept
-    { ConPrinter::PrintLn("    Const.1"); }
-
-    void VisitConst2() noexcept
-    { ConPrinter::PrintLn("    Const.2"); }
-
-    void VisitConst3() noexcept
-    { ConPrinter::PrintLn("    Const.3"); }
-
-    void VisitConst4() noexcept
-    { ConPrinter::PrintLn("    Const.4"); }
-
-    void VisitConstFF() noexcept
-    { ConPrinter::PrintLn("    Const.FF"); }
-
-    void VisitConst7F() noexcept
-    { ConPrinter::PrintLn("    Const.7F"); }
-
+    VISIT_PRINT_1(Const, 0);
+    VISIT_PRINT_1(Const, 1);
+    VISIT_PRINT_1(Const, 2);
+    VISIT_PRINT_1(Const, 3);
+    VISIT_PRINT_1(Const, 4);
+    VISIT_PRINT_1(Const, FF);
+    VISIT_PRINT_1(Const, 7F);
+    
     void VisitConstN(const u32 constant) noexcept
     { ConPrinter::PrintLn("    Const.N {}", constant); }
 
-    void VisitAddI32() noexcept
-    { ConPrinter::PrintLn("    Add.i32"); }
+    VISIT_PRINT_0_I32(Add);
+    VISIT_PRINT_0_I64(Add);
+    VISIT_PRINT_0_I32(Sub);
+    VISIT_PRINT_0_I64(Sub);
+    VISIT_PRINT_0_I32(Mul);
+    VISIT_PRINT_0_I64(Mul);
+    VISIT_PRINT_0_I32(Div);
+    VISIT_PRINT_0_I64(Div);
 
-    void VisitAddI64() noexcept
-    { ConPrinter::PrintLn("    Add.i64"); }
+    VISIT_PRINT_1_I32(Comp, Above);
+    VISIT_PRINT_1_I32(Comp, AboveOrEqual);
+    VISIT_PRINT_1_I32(Comp, Below);
+    VISIT_PRINT_1_I32(Comp, BelowOrEqual);
+    VISIT_PRINT_1_I32(Comp, Greater);
+    VISIT_PRINT_1_I32(Comp, GreaterOrEqual);
+    VISIT_PRINT_1_I32(Comp, Less);
+    VISIT_PRINT_1_I32(Comp, LessOrEqual);
+    VISIT_PRINT_1_I32(Comp, NotEqual);
 
-    void VisitSubI32() noexcept
-    { ConPrinter::PrintLn("    Sub.i32"); }
-
-    void VisitSubI64() noexcept
-    { ConPrinter::PrintLn("    Sub.i64"); }
-
-    void VisitMulI32() noexcept
-    { ConPrinter::PrintLn("    Mul.i32"); }
-
-    void VisitMulI64() noexcept
-    { ConPrinter::PrintLn("    Mul.i64"); }
-
-    void VisitDivI32() noexcept
-    { ConPrinter::PrintLn("    Div.i32"); }
-
-    void VisitDivI64() noexcept
-    { ConPrinter::PrintLn("    Div.i64"); }
-
-    void VisitCompI32Above() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.Above"); }
-
-    void VisitCompI32AboveOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.AboveOrEqual"); }
-
-    void VisitCompI32Below() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.Below"); }
-
-    void VisitCompI32BelowOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.BelowOrEqual"); }
-
-    void VisitCompI32Greater() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.Greater"); }
-
-    void VisitCompI32GreaterOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.GreaterOrEqual"); }
-
-    void VisitCompI32Less() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.Less"); }
-
-    void VisitCompI32LessOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.LessOrEqual"); }
-
-    void VisitCompI32NotEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i32.NotEqual"); }
-
-    void VisitCompI64Above() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.Above"); }
-
-    void VisitCompI64AboveOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.AboveOrEqual"); }
-
-    void VisitCompI64Below() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.Below"); }
-
-    void VisitCompI64BelowOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.BelowOrEqual"); }
-
-    void VisitCompI64Greater() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.Greater"); }
-
-    void VisitCompI64GreaterOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.GreaterOrEqual"); }
-
-    void VisitCompI64Less() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.Less"); }
-
-    void VisitCompI64LessOrEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.LessOrEqual"); }
-
-    void VisitCompI64NotEqual() noexcept
-    { ConPrinter::PrintLn("    Comp.i64.NotEqual"); }
-
+    VISIT_PRINT_1_I64(Comp, Above);
+    VISIT_PRINT_1_I64(Comp, AboveOrEqual);
+    VISIT_PRINT_1_I64(Comp, Below);
+    VISIT_PRINT_1_I64(Comp, BelowOrEqual);
+    VISIT_PRINT_1_I64(Comp, Greater);
+    VISIT_PRINT_1_I64(Comp, GreaterOrEqual);
+    VISIT_PRINT_1_I64(Comp, Less);
+    VISIT_PRINT_1_I64(Comp, LessOrEqual);
+    VISIT_PRINT_1_I64(Comp, NotEqual);
+    
     void VisitCall(const u32 functionIndex) noexcept
-    { ConPrinter::PrintLn("    Call <Func{}>", functionIndex); }
+    {
+        ConPrinter::Print("    Call ");
+        PrintFunction(functionIndex, m_CurrentModule);
+        ConPrinter::PrintLn();
+    }
 
     void VisitCallExt(const u32 functionIndex, const u16 moduleIndex) noexcept
     {
         ConPrinter::Print("    Call.Ext ");
-
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
-        {
-            ConPrinter::Print(moduleIndex);
-        }
-        else
-        {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
-        }
-
-        ConPrinter::PrintLn(":<Func{}>", functionIndex);
+        PrintModule(moduleIndex);
+        ConPrinter::Print(':');
+        PrintFunction(functionIndex, moduleIndex);
+        ConPrinter::PrintLn();
     }
 
-    void VisitCallInd() noexcept
-    { ConPrinter::PrintLn("    Call.Ind"); }
-
-    void VisitRet() noexcept
-    { ConPrinter::PrintLn("    Ret"); }
+    VISIT_PRINT_1(Call, Ind);
+    VISIT_PRINT_2(Call, Ind, Ext);
+    VISIT_PRINT_0(Ret);
 
     void VisitJump(const i32 offset) noexcept
     {
@@ -443,24 +333,73 @@ private:
         return -1;
     }
 
+    void PrintModule(const u16 moduleIndex) noexcept
+    {
+        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        {
+            ConPrinter::Print(moduleIndex);
+        }
+        else
+        {
+            ConPrinter::Print(Modules()[moduleIndex]->Name());
+        }
+    }
+
+    void PrintFunction(const u32 functionIndex, const u16 moduleIndex) noexcept
+    {
+        if(moduleIndex < Modules().size())
+        {
+            const DynArray<const Function*>& functions = Modules()[moduleIndex]->Functions();
+
+            if(functionIndex < functions.Size())
+            {
+                if(functions[functionIndex]->Name().Length() != 0)
+                {
+                    ConPrinter::Print(functions[functionIndex]->Name());
+                    return;
+                }
+            }
+        }
+
+        ConPrinter::Print("<Func{}>", functionIndex);
+    }
+
     [[nodiscard]] const ::std::vector<Ref<Module>>& Modules() const noexcept { return *m_Modules; }
 private:
     DynArray<const u8*> m_Labels;
     const ::std::vector<Ref<Module>>* m_Modules;
     const u8* m_CurrCodePtr;
+    u16 m_CurrentModule;
 };
 
-void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ::std::vector<Ref<Module>>& modules) noexcept
+#undef VISIT_PRINT_1_I64
+#undef VISIT_PRINT_1_I32
+#undef VISIT_PRINT_0_I64
+#undef VISIT_PRINT_0_I32
+#undef VISIT_PRINT_2
+#undef VISIT_PRINT_1
+#undef VISIT_PRINT_0
+
+static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept;
+
+void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ::std::vector<Ref<Module>>& modules, const u16 moduleIndex) noexcept
 {
-    ConPrinter::Print("Func{}:\n", functionIndex);
+    if(function->Name().Length() != 0)
+    {
+        ConPrinter::PrintLn("{}:", function->Name());
+    }
+    else
+    {
+        ConPrinter::PrintLn("Func{}:", functionIndex);
+    }
 
     const DynArray<const u8*> labels = PreProcessFunction(function);
 
-    DumpVisitor dumpVisitor(labels, &modules);
-    dumpVisitor.Traverse(function);
+    DumpVisitor dumpVisitor(labels, &modules, moduleIndex);
+    dumpVisitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 }
 
-class VisitorJumpCount : public BaseIrVisitor<VisitorJumpCount>
+class VisitorJumpCount final : public BaseIrVisitor<VisitorJumpCount>
 {
     DEFAULT_DESTRUCT(VisitorJumpCount);
     DEFAULT_CM_PU(VisitorJumpCount);
@@ -476,17 +415,7 @@ public:
         m_JumpCount = 0;
     }
 
-    void VisitJump(const i32 offset) noexcept
-    {
-        ++m_JumpCount;
-    }
-
-    void VisitJumpTrue(const i32 offset) noexcept
-    {
-        ++m_JumpCount;
-    }
-
-    void VisitJumpFalse(const i32 offset) noexcept
+    void VisitJumpPoint(const i32 offset) noexcept
     {
         ++m_JumpCount;
     }
@@ -494,7 +423,7 @@ private:
     uSys m_JumpCount;
 };
 
-class VisitorLabeler : public BaseIrVisitor<VisitorLabeler>
+class VisitorLabeler final : public BaseIrVisitor<VisitorLabeler>
 {
     DEFAULT_DESTRUCT(VisitorLabeler);
     DEFAULT_CM_PU(VisitorLabeler);
@@ -519,17 +448,7 @@ public:
         m_CurrCodePtr = codePtr;
     }
 
-    void VisitJump(const i32 offset) noexcept
-    {
-        m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
-    }
-
-    void VisitJumpTrue(const i32 offset) noexcept
-    {
-        m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
-    }
-
-    void VisitJumpFalse(const i32 offset) noexcept
+    void VisitJumpPoint(const i32 offset) noexcept
     {
         m_Labels[m_WriteIndex++] = m_CurrCodePtr + 5 + offset;
     }
@@ -542,10 +461,10 @@ private:
 static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept
 {
     VisitorJumpCount jumpCountVisitor;
-    jumpCountVisitor.Traverse(function);
+    jumpCountVisitor.Traverse(function->Address(), function->Address() + function->CodeSize());
     
     VisitorLabeler labelerVisitor(jumpCountVisitor.JumpCount());
-    labelerVisitor.Traverse(function);
+    labelerVisitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 
     return labelerVisitor.Labels();
 }
@@ -1035,8 +954,11 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
             }
             case SsaOpcode::Call:
             {
-                ConPrinter::PrintLn("  Call {}(), {}-{}", ReadType<u32>(codePtr, i), ReadType<u32>(codePtr, i), ReadType<u32>(codePtr, i));
+                const u32 function = ReadType<u32>(codePtr, i);
+                const u32 baseIndex = ReadType<u32>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
 
+                ConPrinter::PrintLn("  u64 %{} = Call <Func{}>(), %{}-{}", idIndex++, function, baseIndex, parameterCount);
                 break;
             }
             case SsaOpcode::CallExt:
@@ -1046,23 +968,39 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
                 const u32 parameterCount = ReadType<u32>(codePtr, i);
                 const u16 moduleId = ReadType<u16>(codePtr, i);
 
-                ConPrinter::PrintLn("  Call.Ext {}:{}(), {}-{}", moduleId, function, baseIndex, parameterCount);
+                ConPrinter::PrintLn("  u64 %{} = Call.Ext {}:<Func{}>(), %{}-{}", idIndex++, moduleId, function, baseIndex, parameterCount);
 
                 break;
             }
             case SsaOpcode::CallInd:
             {
-                ConPrinter::PrintLn("  Call.Ind {}(), {}-{}", ReadType<u32>(codePtr, i), ReadType<u32>(codePtr, i), ReadType<u32>(codePtr, i));
-
-                ConPrinter::Print("  Call.Ind ");
-                PrintVar(ReadType<VarId>(codePtr, i));
-                ConPrinter::PrintLn(", {}-{}", ReadType<u32>(codePtr, i), ReadType<u32>(codePtr, i));
-
+                const VarId functionPointer = ReadType<VarId>(codePtr, i);
+                const u32 baseIndex = ReadType<u32>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+                
+                ConPrinter::PrintLn("  u64 %{} = Call.Ind %{}(), %{}-{}", idIndex++, functionPointer, baseIndex, parameterCount);
+                
+                break;
+            }
+            case SsaOpcode::CallIndExt:
+            {
+                const VarId functionPointer = ReadType<VarId>(codePtr, i);
+                const u32 baseIndex = ReadType<u32>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+                const VarId modulePointer = ReadType<VarId>(codePtr, i);
+                
+                ConPrinter::PrintLn("  u64 %{} = Call.Ind.Ext %{}:%{}(), %{}-{}", idIndex++, modulePointer, functionPointer, baseIndex, parameterCount);
+                
                 break;
             }
             case SsaOpcode::Ret:
             {
-                ConPrinter::PrintLn("  Ret");
+                const SsaCustomType returnType = ReadType<SsaCustomType>(codePtr, i);
+                const u32 returnVar = ReadType<u32>(codePtr, i);
+
+                ConPrinter::Print("  Ret ");
+                PrintType(returnType);
+                ConPrinter::PrintLn(" %{}", returnVar);
 
                 break;
             }

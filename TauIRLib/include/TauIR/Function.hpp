@@ -6,6 +6,7 @@
 #include <NumTypes.hpp>
 #include <DynArray.hpp>
 #include <TUMaths.hpp>
+#include <String.hpp>
 
 #if defined(__STDCPP_STRICT_POINTER_SAFETY__) && __STDCPP_STRICT_POINTER_SAFETY__ == 1
 #error "You have managed to find the one architecture that has strict pointer safety, unfortunately, we need relaxed pointer safety."
@@ -135,6 +136,21 @@ union FunctionFlags final
     { }
 };
 
+struct FunctionArgument
+{
+    DEFAULT_CONSTRUCT_PU(FunctionArgument);
+    DEFAULT_DESTRUCT(FunctionArgument);
+    DEFAULT_CM_PU(FunctionArgument);
+public:
+    bool IsRegister;
+    uSys RegisterOrStackOffset;
+
+    FunctionArgument(const bool isRegister, const uSys registerOrStackOffset) noexcept
+        : IsRegister(isRegister)
+        , RegisterOrStackOffset(registerOrStackOffset)
+    { }
+};
+
 class TypeInfo;
 
 class Function final
@@ -142,38 +158,76 @@ class Function final
     DEFAULT_DESTRUCT(Function);
     DEFAULT_CM_PU(Function);
 public:
-    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
+    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
         : m_Address(address)
 		, m_CodeSize(codeSize)
         , m_LocalSize(0)
         , m_LocalTypes(localTypes)
         , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
+        , m_Arguments(arguments)
+        , m_Flags(flags)
+    { LoadLocalOffsets(); }
+
+    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
+        : m_Address(address)
+		, m_CodeSize(codeSize)
+        , m_LocalSize(0)
+        , m_LocalTypes(localTypes)
+        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
+        , m_Arguments(::std::move(arguments))
+        , m_Flags(flags)
+    { LoadLocalOffsets(); }
+
+    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
+        : m_Address(address)
+		, m_CodeSize(codeSize)
+        , m_LocalSize(0)
+        , m_LocalTypes(::std::move(localTypes))
+        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
+        , m_Arguments(arguments)
         , m_Flags(flags)
     { LoadLocalOffsets(); }
     
-    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
+    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
         : m_Address(address)
         , m_CodeSize(codeSize)
         , m_LocalSize(0)
         , m_LocalTypes(::std::move(localTypes))
         , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
+        , m_Arguments(::std::move(arguments))
         , m_Flags(flags)
     { LoadLocalOffsets(); }
 
-    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, flags)
+    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, arguments, flags)
     { }
 
-    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), flags)
+    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, ::std::move(arguments), flags)
     { }
 
-    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, flags) // NOLINT(performance-no-int-to-ptr)
+    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), arguments, flags)
     { }
 
-    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), flags) // NOLINT(performance-no-int-to-ptr)
+    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), ::std::move(arguments), flags)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, arguments, flags) // NOLINT(performance-no-int-to-ptr)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, ::std::move(arguments), flags) // NOLINT(performance-no-int-to-ptr)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), arguments, flags) // NOLINT(performance-no-int-to-ptr)
+    { }
+
+    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
+        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), ::std::move(arguments), flags) // NOLINT(performance-no-int-to-ptr)
     { }
 
     [[nodiscard]] const u8* Address() const noexcept { return m_Address; }
@@ -181,7 +235,10 @@ public:
     [[nodiscard]] uSys LocalSize() const noexcept { return m_LocalSize; }
     [[nodiscard]] const DynArray<const TypeInfo*>& LocalTypes() const noexcept { return m_LocalTypes;   }
     [[nodiscard]] const DynArray<uSys>&          LocalOffsets() const noexcept { return m_LocalOffsets; }
+    [[nodiscard]] const DynArray<FunctionArgument>& Arguments() const noexcept { return m_Arguments; }
     [[nodiscard]] FunctionFlags Flags() const noexcept { return m_Flags; }
+    [[nodiscard]] const C8DynString& Name() const noexcept { return m_Name; }
+    [[nodiscard]]       C8DynString& Name()       noexcept { return m_Name; }
 public:
     /**
      * Allocate with a fixed block allocator for performance.
@@ -218,44 +275,19 @@ private:
      * first offset as it is always zero.
      */
     DynArray<uSys> m_LocalOffsets;
+    DynArray<FunctionArgument> m_Arguments;
     FunctionFlags m_Flags;
+    C8DynString m_Name;
 };
 
-template<typename TRet>
-class NativeFunction final
+inline void* PrepareNativeFunctionPointer(const Function* const function) noexcept
 {
-    DELETE_CONSTRUCT(NativeFunction);
-    DELETE_DESTRUCT(NativeFunction);
-    DELETE_CM(NativeFunction);
-public:
-    static void* PrepareNativeFunctionPointer(const Function* function) noexcept
-    {
-        return const_cast<void*>(reinterpret_cast<const void*>(function->Address()));
-    }
-    
-    static TRet CallNativeFunctionPointer(const Function* function) noexcept
-    {
-        return reinterpret_cast<TRet(*)()>(PrepareNativeFunctionPointer(function))();
-    }
-};
+    return const_cast<void*>(reinterpret_cast<const void*>(function->Address()));
+}
 
-
-template<>
-class NativeFunction<void> final
+inline void CallNativeFunctionPointer(const Function* const function, DynArray<u64>& arguments, DynArray<u8>& stack, uSys& stackPointer) noexcept
 {
-    DELETE_CONSTRUCT(NativeFunction);
-    DELETE_DESTRUCT(NativeFunction);
-    DELETE_CM(NativeFunction);
-public:
-    static void* PrepareNativeFunctionPointer(const Function* function) noexcept
-    {
-        return const_cast<void*>(reinterpret_cast<const void*>(function->Address()));
-    }
-
-    static void CallNativeFunctionPointer(const Function* function, const DynArray<u64>& arguments) noexcept
-    {
-        reinterpret_cast<void(*)(const DynArray<u64>&)>(PrepareNativeFunctionPointer(function))(arguments);
-    }
-};
+    reinterpret_cast<void(*)(DynArray<u64>&, DynArray<u8>&, uSys&)>(PrepareNativeFunctionPointer(function))(arguments, stack, stackPointer);
+}
 
 }

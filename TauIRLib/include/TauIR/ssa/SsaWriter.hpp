@@ -38,6 +38,11 @@ public:
     VarId WriteBinOpItoV(SsaBinaryOperation operation, SsaCustomType type, VarId a, const void* bValue, uSys bSize);
     VarId WriteSplit(SsaCustomType aType, VarId a, u32 n, const SsaCustomType* t) noexcept;
     VarId WriteJoin(SsaCustomType outType, u32 n, const SsaCustomType* t, const VarId* v) noexcept;
+    VarId WriteCall(u32 function, u32 baseIndex, u32 parameterCount) noexcept;
+    VarId WriteCallExt(u32 function, u32 baseIndex, u32 parameterCount, u16 module) noexcept;
+    VarId WriteCallInd(u32 functionPointer, u32 baseIndex, u32 parameterCount) noexcept;
+    VarId WriteCallIndExt(u32 functionPointer, u32 baseIndex, u32 parameterCount, u32 modulePointer) noexcept;
+    void WriteRet(SsaCustomType returnType, VarId var) noexcept;
 
     [[nodiscard]] SsaCustomType GetVarType(const VarId var) const noexcept { return m_VarTypeMap[var]; }
 
@@ -91,13 +96,13 @@ public:
 
     void PushFrame(VarId var, uSys size);
     FrameInfo PopFrame(uSys size);
-    FrameInfo CheckFrame() const;
+    [[nodiscard]] FrameInfo CheckFrame() const;
 
     void SetLocal(VarId var, uSys local);
-    VarId GetLocal(uSys local) const;
+    [[nodiscard]] VarId GetLocal(uSys local) const;
 
     void SetArgument(VarId var, uSys arg);
-    VarId GetArgument(uSys arg) const;
+    [[nodiscard]] VarId GetArgument(uSys arg) const;
 private:
     ::std::deque<FrameInfo> m_Frame;
     VarId* m_Locals;

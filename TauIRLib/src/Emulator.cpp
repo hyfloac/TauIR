@@ -34,7 +34,7 @@ void Emulator::Execute() noexcept
 
     const Function* const entryPoint = mainModule->Functions()[0];
 
-    ExecuteFunction(entryPoint, mainModule.Get());
+    Executor(entryPoint, mainModule.Get());
 }
 
 template<typename T>
@@ -45,22 +45,26 @@ static T ReadCodeValue(const u8*& codePtr)
     return ret;
 }
 
-void Emulator::ExecuteFunction(const Function* const function, const Module* const module) noexcept
+void Emulator::Executor(const Function* function, const Module* module) noexcept
 {
+#define CALL_PUSH() \
+    PushValueLocal(m_LocalsStackPointer); \
+    PushValueLocal(localsHead);           \
+    PushValueLocal(module);               \
+    PushValueLocal(function);             \
+    PushValueLocal(codePtr)
+#define RET_POP() \
+    codePtr = PopValueLocal<const u8*>();          \
+    function = PopValueLocal<const Function*>();  \
+    module = PopValueLocal<const Module*>();      \
+    localsHead = PopValueLocal<uSys>();           \
+    m_LocalsStackPointer = PopValueLocal<uSys>()
+
     const u8* codePtr = function->Address();
 
-    // Unused while emulating.
-    // const uPtr prevFunctionPtr = *(reinterpret_cast<const uPtr*>(m_Stack.arr() + m_StackPointer) - 1);
-
-    const uSys localsHead = m_StackPointer;
-    m_StackPointer += function->LocalSize();
-
-#if 0
-    for(uSys i = 0; i <  function->LocalSize(); ++i)
-    {
-        m_Stack[localsHead + i] = static_cast<u8>(i);
-    }
-#endif
+    uSys callDepth = 0;
+    uSys localsHead = m_LocalsStackPointer;
+    m_LocalsStackPointer += function->LocalSize();
     
     while(true)
     {
@@ -76,14 +80,7 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
         }
 
         const Opcode opcode = static_cast<Opcode>(opcodeRaw);
-
-        // This cannot be in the switch statement due to our need to use break from the loop.
-        if(opcode == Opcode::Ret)
-        {
-            (void) PopValue<u32>();
-            break;
-        }
-
+        
         switch(opcode)
         {
             case Opcode::Nop:
@@ -136,10 +133,10 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
                 const void* localPointer = GetLocal<void*>(function, localsHead, localIndex);
 
                 // Copy the value.
-                (void) ::std::memcpy(m_ExecutionStack.arr() + m_StackPointer, localPointer, localSize);
+                (void) ::std::memcpy(m_ExecutionStack.arr() + m_ExecutionStackPointer, localPointer, localSize);
 
                 // Offset the stack.
-                m_StackPointer += localSize;
+                m_ExecutionStackPointer += localSize;
                 break;
             }
             case Opcode::Pop0:
@@ -190,10 +187,10 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
                 void* localPointer = GetLocal<void*>(function, localsHead, localIndex);
 
                 // Offset the stack.
-                m_StackPointer -= localSize;
+                m_ExecutionStackPointer -= localSize;
 
                 // Copy the value.
-                (void) ::std::memcpy(localPointer, m_ExecutionStack.arr() + m_StackPointer, localSize);
+                (void) ::std::memcpy(localPointer, m_ExecutionStack.arr() + m_ExecutionStackPointer, localSize);
 
                 break;
             }
@@ -201,7 +198,7 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
             {
                 const u16 count = ReadCodeValue<u16>(codePtr);
 
-                m_StackPointer -= count;
+                m_ExecutionStackPointer -= count;
                 break;
             }
             case Opcode::Dup1:
@@ -574,31 +571,88 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
             case Opcode::Call:
             {
                 const u32 functionIndex = ReadCodeValue<u32>(codePtr);
+                
+                CALL_PUSH();
 
-                PushValue(reinterpret_cast<uSys>(codePtr));
-                ExecuteFunction(module->Functions()[functionIndex], module);
+                const Function* nextFunction = module->Functions()[functionIndex];
+
+                codePtr = nextFunction->Address();
+                localsHead = m_LocalsStackPointer;
+                m_LocalsStackPointer += nextFunction->LocalSize();
+                ++callDepth;
                 break;
             }
             case Opcode::CallExt:
             {
                 const u32 functionIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-
-                PushValue(reinterpret_cast<uSys>(codePtr));
+                
                 const Module* const targetModule = m_Modules[moduleIndex].Get();
 
                 if(targetModule->IsNative())
                 {
-                    ::tau::ir::NativeFunction<void>::CallNativeFunctionPointer(targetModule->Functions()[functionIndex], m_Arguments);
+                    ::tau::ir::CallNativeFunctionPointer(targetModule->Functions()[functionIndex], m_Arguments, m_ExecutionStack, m_ExecutionStackPointer);
                 }
                 else
                 {
-                    ExecuteFunction(targetModule->Functions()[functionIndex], targetModule);
+                    CALL_PUSH();
+
+                    const Function* nextFunction = targetModule->Functions()[functionIndex];
+
+                    codePtr = nextFunction->Address();
+                    localsHead = m_LocalsStackPointer;
+                    m_LocalsStackPointer += nextFunction->LocalSize();
+                    ++callDepth;
                 }
                 break;
             }
             case Opcode::CallInd:
             {
+                const u32 functionIndex = PopValue<u32>();
+
+                CALL_PUSH();
+
+                const Function* nextFunction = module->Functions()[functionIndex];
+
+                codePtr = nextFunction->Address();
+                localsHead = m_LocalsStackPointer;
+                m_LocalsStackPointer += nextFunction->LocalSize();
+                ++callDepth;
+                break;
+            }
+            case Opcode::CallIndExt:
+            {
+                const u32 functionIndex = PopValue<u32>();
+                const u16 moduleIndex = PopValue<u16>();
+                
+                const Module* const targetModule = m_Modules[moduleIndex].Get();
+
+                if(targetModule->IsNative())
+                {
+                    ::tau::ir::CallNativeFunctionPointer(targetModule->Functions()[functionIndex], m_Arguments, m_ExecutionStack, m_ExecutionStackPointer);
+                }
+                else
+                {
+                    CALL_PUSH();
+
+                    const Function* nextFunction = targetModule->Functions()[functionIndex];
+
+                    codePtr = nextFunction->Address();
+                    localsHead = m_LocalsStackPointer;
+                    m_LocalsStackPointer += nextFunction->LocalSize();
+                    ++callDepth;
+                }
+                break;
+            }
+            case Opcode::Ret:
+            {
+                if(callDepth == 0)
+                {
+                    return;
+                }
+                --callDepth;
+                RET_POP();
+
                 break;
             }
             case Opcode::Jump:
@@ -636,8 +690,6 @@ void Emulator::ExecuteFunction(const Function* const function, const Module* con
                 break;
         }
     }
-
-    m_StackPointer = localsHead - sizeof(uPtr);
 }
 
 void Emulator::PushLocal(const Function* const function, const uSys localsHead, const u16 local) noexcept
@@ -646,10 +698,10 @@ void Emulator::PushLocal(const Function* const function, const uSys localsHead, 
     const auto [size, offset] = GetLocalSizeAndOffset(function, local);
 
     // Copy the value.
-    (void) ::std::memcpy(m_ExecutionStack.arr() + m_StackPointer, m_LocalsStack.arr() + localsHead + offset, size);
+    (void) ::std::memcpy(m_ExecutionStack.arr() + m_ExecutionStackPointer, m_LocalsStack.arr() + localsHead + offset, size);
 
     // Adjust the stack pointer.
-    m_StackPointer += size;
+    m_ExecutionStackPointer += size;
 }
 
 void Emulator::PopLocal(const Function* const function, const uSys localsHead, const u16 local) noexcept
@@ -658,10 +710,10 @@ void Emulator::PopLocal(const Function* const function, const uSys localsHead, c
     const auto [size, offset] = GetLocalSizeAndOffset(function, local);
 
     // Adjust the stack pointer.
-    m_StackPointer -= size;
+    m_ExecutionStackPointer -= size;
 
     // Copy the value.
-    (void) ::std::memcpy(m_LocalsStack.arr() + localsHead + offset, m_ExecutionStack.arr() + m_StackPointer, size);
+    (void) ::std::memcpy(m_LocalsStack.arr() + localsHead + offset, m_ExecutionStack.arr() + m_ExecutionStackPointer, size);
 }
 
 void Emulator::PushArgument(const uSys argument) noexcept
@@ -673,10 +725,10 @@ void Emulator::PushArgument(const uSys argument) noexcept
     }
 
     // Copy the value.
-    (void) ::std::memcpy(m_ExecutionStack.arr() + m_StackPointer, m_Arguments.arr() + argument, sizeof(ArgumentRegisterType));
+    (void) ::std::memcpy(m_ExecutionStack.arr() + m_ExecutionStackPointer, m_Arguments.arr() + argument, sizeof(ArgumentRegisterType));
 
     // Adjust the stack pointer.
-    m_StackPointer += sizeof(ArgumentRegisterType);
+    m_ExecutionStackPointer += sizeof(ArgumentRegisterType);
 }
 
 void Emulator::PopArgument(const uSys argument) noexcept
@@ -688,16 +740,16 @@ void Emulator::PopArgument(const uSys argument) noexcept
     }
 
     // Adjust the stack pointer.
-    m_StackPointer -= sizeof(ArgumentRegisterType);
+    m_ExecutionStackPointer -= sizeof(ArgumentRegisterType);
 
     // Copy the value.
-    (void) ::std::memcpy(m_Arguments.arr() + argument, m_ExecutionStack.arr() + m_StackPointer, sizeof(ArgumentRegisterType));
+    (void) ::std::memcpy(m_Arguments.arr() + argument, m_ExecutionStack.arr() + m_ExecutionStackPointer, sizeof(ArgumentRegisterType));
 }
 
 void Emulator::DuplicateVal(const uSys byteCount) noexcept
 {
-    (void) ::std::memcpy(m_ExecutionStack.arr() + m_StackPointer, m_ExecutionStack.arr() + m_StackPointer - byteCount, byteCount);
-    m_StackPointer += byteCount;
+    (void) ::std::memcpy(m_ExecutionStack.arr() + m_ExecutionStackPointer, m_ExecutionStack.arr() + m_ExecutionStackPointer - byteCount, byteCount);
+    m_ExecutionStackPointer += byteCount;
 }
 
 void Emulator::SetLocal(const Function* const function, const uSys localsHead, const u16 local, const void* const data) noexcept

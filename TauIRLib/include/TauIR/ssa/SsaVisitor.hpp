@@ -87,6 +87,17 @@ protected:
     bool VisitSplit(const VarId baseIndex, const SsaCustomType aType, const VarId a, const uSys splitCount, const SsaCustomType* const splitTypes) noexcept { return true; }                                           
     // ReSharper disable once CppHiddenFunction
     bool VisitJoin(const VarId newVar, const SsaCustomType newType, const uSys joinCount, const SsaCustomType* const joinTypes, const VarId* const joinVars) noexcept { return true; }   
+    // ReSharper disable once CppHiddenFunction 
+    bool VisitCall(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCallExt(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount, const u16 moduleIndex) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCallInd(const VarId newVar, const VarId functionPointer, const VarId baseIndex, const u32 parameterCount) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCallIndExt(const VarId newVar, const VarId functionPointer, const VarId baseIndex, const u32 parameterCount, const VarId modulePointer) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitRet(const SsaCustomType returnType, const VarId var) noexcept { return true; }
+
 
     [[nodiscard]] const SsaCustomTypeRegistry& Registry() const noexcept { return *m_Registry; }
 private:
@@ -428,12 +439,69 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
             }
             case SsaOpcode::Branch:
             case SsaOpcode::BranchCond:
-            case SsaOpcode::Call:
-            case SsaOpcode::CallExt:
-            case SsaOpcode::CallInd:
-            case SsaOpcode::Ret:
             {
                 throw 1;
+                break;
+            }
+            case SsaOpcode::Call:
+            {
+                const u32 functionIndex = ReadType<u32>(codePtr, i);
+                const VarId baseIndex = ReadType<VarId>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+
+                if(!GetDerived().VisitCall(idIndex++, functionIndex, baseIndex, parameterCount))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::CallExt:
+            {
+                const u32 functionIndex = ReadType<u32>(codePtr, i);
+                const VarId baseIndex = ReadType<VarId>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+                const u16 moduleIndex = ReadType<u16>(codePtr, i);
+
+                if(!GetDerived().VisitCallExt(idIndex++, functionIndex, baseIndex, parameterCount, moduleIndex))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::CallInd:
+            {
+                const VarId functionPointer = ReadType<VarId>(codePtr, i);
+                const VarId baseIndex = ReadType<VarId>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+
+                if(!GetDerived().VisitCallInd(idIndex++, functionPointer, baseIndex, parameterCount))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::CallIndExt:
+            {
+                const VarId functionPointer = ReadType<VarId>(codePtr, i);
+                const VarId baseIndex = ReadType<VarId>(codePtr, i);
+                const u32 parameterCount = ReadType<u32>(codePtr, i);
+                const VarId modulePointer = ReadType<VarId>(codePtr, i);
+
+                if(!GetDerived().VisitCallIndExt(idIndex++, functionPointer, baseIndex, parameterCount, modulePointer))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::Ret:
+            {
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+                const VarId var = ReadType<VarId>(codePtr, i);
+
+                if(!GetDerived().VisitRet(type, var))
+                {
+                    return false;
+                }
                 break;
             }
         }
