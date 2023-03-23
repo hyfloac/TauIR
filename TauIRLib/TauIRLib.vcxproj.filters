@@ -52,6 +52,7 @@
     <ClInclude Include="include\TauIR\ssa\opto\Inliner.hpp" />
     <ClInclude Include="include\TauIR\FunctionNameMangler.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaFunctionAttachment.hpp" />
+    <ClInclude Include="include\TauIR\ssa\opto\DeadCodeElimination.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -75,6 +76,7 @@
     <ClCompile Include="src\SsaTypeRegistry.cpp" />
     <ClCompile Include="src\FunctionNameMangler.cpp" />
     <ClCompile Include="src\SsaFunctionAttachment.cpp" />
+    <ClCompile Include="src\DeadCodeElimination.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="include\TauIR\IrVisitor.inl" />

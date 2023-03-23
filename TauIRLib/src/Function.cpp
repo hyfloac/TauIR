@@ -9,8 +9,14 @@ RTT_BASE_IMPL_TU(FunctionAttachment);
 
 void FunctionAttachment::Attach(FunctionAttachment* attachment) noexcept
 {
-    FunctionAttachment* next = m_Next;
+    if(!m_Next)
+    {
+        m_Next = attachment;
+        return;
+    }
 
+    FunctionAttachment* next = m_Next;
+    
     while(next->m_Next)
     {
         next = next->m_Next;

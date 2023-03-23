@@ -325,14 +325,7 @@ void IrToSsa::TransformFunction(Function* const function, const ModuleList& modu
     IrToSsaVisitor visitor(function, modules, currentModule);
     visitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 
-    if(function->Attachment())
-    {
-        function->Attachment()->Attach(new ssa::SsaFunctionAttachment(::std::move(visitor.Writer())));
-    }
-    else
-    {
-        function->Attachment() = Ref<ssa::SsaFunctionAttachment>(::std::move(visitor.Writer()));
-    }
+    function->Attach<ssa::SsaFunctionAttachment>(::std::move(visitor.Writer()));
 }
     
 IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, const uSys size, const ssa::SsaType ssaType)

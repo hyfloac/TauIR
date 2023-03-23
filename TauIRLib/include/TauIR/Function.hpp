@@ -167,7 +167,7 @@ protected:
         : m_Next(nullptr)
     { }
 public:
-    virtual ~FunctionAttachment()
+    virtual ~FunctionAttachment() noexcept
     {
         delete m_Next;
     }
@@ -227,6 +227,19 @@ public:
     const T* FindAttachment() const noexcept
     {
         return const_cast<Function*>(this)->FindAttachment<T>();
+    }
+
+    template<typename T, typename... Args>
+    void Attach(Args&&... args) noexcept
+    {
+        if(m_Attachment)
+        {
+            m_Attachment->Attach(new T(TauAllocatorUtils::Forward<Args>(args)...));
+        }
+        else
+        {
+            m_Attachment = Ref<T>(TauAllocatorUtils::Forward<Args>(args)...);
+        }
     }
 public:
     /**

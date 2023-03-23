@@ -442,16 +442,16 @@ public:
 			const i64 scaledIndexOffset = static_cast<i64>(scaledIndex) + offset;
 			if(scaledIndexOffset <= IntMaxMin<i16>::Max && scaledIndexOffset >= IntMaxMin<i16>::Min)
 			{
-				m_NewVarMap[newVar] = m_Writer.WriteComputePtr(base, base, 0, static_cast<i16>(scaledIndexOffset));
+				m_NewVarMap[newVar] = m_Writer.WriteComputePtr(FindSourceVar(base), FindSourceVar(base), 0, static_cast<i16>(scaledIndexOffset));
 			}
 			else
 			{
-				m_NewVarMap[newVar] = m_Writer.WriteComputePtr(base, index, multiplier, offset);
+				m_NewVarMap[newVar] = m_Writer.WriteComputePtr(FindSourceVar(base), FindSourceVar(index), multiplier, offset);
 			}
 		}
 		else
 		{
-			m_NewVarMap[newVar] = m_Writer.WriteComputePtr(base, index, multiplier, offset);
+			m_NewVarMap[newVar] = m_Writer.WriteComputePtr(FindSourceVar(base), FindSourceVar(index), multiplier, offset);
 		}
 
 		return true;
@@ -757,7 +757,14 @@ public:
 	{
 		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
 
-		m_NewVarMap[newVar] = m_Writer.WriteCallInd(functionPointer, source, parameterCount);
+		if(!m_Linkages[functionPointer].IsVar())
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCall(*reinterpret_cast<const u32*>(m_Linkages[functionPointer].Value), source, parameterCount);
+		}
+		else 
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCallInd(functionPointer, source, parameterCount);
+		}
 
 	    return true;
 	}
@@ -766,7 +773,14 @@ public:
 	{
 		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
 
-		m_NewVarMap[newVar] = m_Writer.WriteCallIndExt(functionPointer, source, parameterCount, modulePointer);
+		if(!m_Linkages[functionPointer].IsVar() && !m_Linkages[modulePointer].IsVar())
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCallExt(*reinterpret_cast<const u32*>(m_Linkages[functionPointer].Value), source, parameterCount, *reinterpret_cast<const u32*>(m_Linkages[modulePointer].Value));
+		}
+		else
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCallIndExt(functionPointer, source, parameterCount, modulePointer);
+		}
 
 	    return true;
 	}
@@ -1119,7 +1133,6 @@ private:
 			}
 		}
 	}
-
 
 	u32 HandleCall(const u32 newVar, const u32 baseIndex, const u32 parameterCount) noexcept
 	{

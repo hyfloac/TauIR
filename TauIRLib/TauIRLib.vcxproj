@@ -116,6 +116,7 @@
     <ClInclude Include="include\TauIR\Opcodes.hpp" />
     <ClInclude Include="include\TauIR\CompileControls.hpp" />
     <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
+    <ClInclude Include="include\TauIR\ssa\opto\DeadCodeElimination.hpp" />
     <ClInclude Include="include\TauIR\ssa\opto\Inliner.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaFunctionAttachment.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
@@ -125,6 +126,7 @@
     <ClInclude Include="include\TauIR\ssa\SsaWriter.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\DeadCodeElimination.cpp" />
     <ClCompile Include="src\Emulator.cpp" />
     <ClCompile Include="src\Function.cpp" />
     <ClCompile Include="src\FunctionNameMangler.cpp" />

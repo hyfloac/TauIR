@@ -10,6 +10,7 @@
 
 #include "TauIR/ssa/SsaTypes.hpp"
 #include "TauIR/ssa/opto/ConstantProp.hpp"
+#include "TauIR/ssa/opto/DeadCodeElimination.hpp"
 
 static void TestSsa() noexcept;
 static void TestIrToSsa() noexcept;
@@ -136,6 +137,7 @@ static void TestIrToSsa() noexcept
     tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
     tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
 
+    // Constant Prop
     {
         tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
         visitor.Traverse(mainFunc);
@@ -147,8 +149,38 @@ static void TestIrToSsa() noexcept
     {
         tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
         visitor.Traverse(squareFunc);
-        visitor.UpdateAttachment(mainFunc);
+        visitor.UpdateAttachment(squareFunc);
 
+        tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+    }
+
+    // Usage Analysis
+    {
+        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+        visitor.Traverse(mainFunc);
+        visitor.UpdateAttachment(mainFunc);
+    }
+    
+    {
+        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+        visitor.Traverse(squareFunc);
+        visitor.UpdateAttachment(squareFunc);
+    }
+    
+    // Dead Code Elimination
+    {
+        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
+        visitor.Traverse(mainFunc);
+        visitor.UpdateAttachment(mainFunc);
+    
+        tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+    }
+    
+    {
+        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
+        visitor.Traverse(squareFunc);
+        visitor.UpdateAttachment(squareFunc);
+    
         tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
     }
 
@@ -237,6 +269,7 @@ static void TestIrToSsaCallInd() noexcept
     tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
     tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
 
+    // Constant Prop
     {
         tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
         visitor.Traverse(mainFunc);
@@ -248,7 +281,37 @@ static void TestIrToSsaCallInd() noexcept
     {
         tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
         visitor.Traverse(squareFunc);
+        visitor.UpdateAttachment(squareFunc);
+
+        tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+    }
+
+    // Usage Analysis
+    {
+        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+        visitor.Traverse(mainFunc);
         visitor.UpdateAttachment(mainFunc);
+    }
+
+    {
+        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+        visitor.Traverse(squareFunc);
+        visitor.UpdateAttachment(squareFunc);
+    }
+
+    // Dead Code Elimination
+    {
+        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
+        visitor.Traverse(mainFunc);
+        visitor.UpdateAttachment(mainFunc);
+
+        tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+    }
+
+    {
+        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
+        visitor.Traverse(squareFunc);
+        visitor.UpdateAttachment(squareFunc);
 
         tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
     }
