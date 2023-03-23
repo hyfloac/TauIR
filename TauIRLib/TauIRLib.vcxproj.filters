@@ -49,6 +49,9 @@
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
     <ClInclude Include="include\TauIR\CompileControls.hpp" />
     <ClInclude Include="include\TauIR\IrVisitor.hpp" />
+    <ClInclude Include="include\TauIR\ssa\opto\Inliner.hpp" />
+    <ClInclude Include="include\TauIR\FunctionNameMangler.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaFunctionAttachment.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -70,6 +73,8 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\SsaTypeRegistry.cpp" />
+    <ClCompile Include="src\FunctionNameMangler.cpp" />
+    <ClCompile Include="src\SsaFunctionAttachment.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="include\TauIR\IrVisitor.inl" />

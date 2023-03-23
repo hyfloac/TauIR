@@ -4,6 +4,8 @@
 #include "TauIR/TypeInfo.hpp"
 #include "TauIR/IrVisitor.hpp"
 #include "TauIR/Module.hpp"
+#include "TauIR/FunctionNameMangler.hpp"
+#include "TauIR/ssa/SsaFunctionAttachment.hpp"
 
 namespace tau::ir {
 
@@ -47,11 +49,11 @@ public:
     using SsaFrameTracker = ssa::SsaFrameTracker;
     using VarId = ssa::VarId;
 public:
-    IrToSsaVisitor(const Function* const function, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
+    IrToSsaVisitor(const Function* const function, const ModuleList& modules, const u16 currentModule) noexcept
         : m_Function(function)
         , m_Writer{}
         , m_FrameTracker(function->LocalTypes().count())
-        , m_Modules(&modules)
+        , m_Modules(modules)
         , m_CurrentModule(currentModule)
     { }
 
@@ -152,6 +154,18 @@ public:
         m_FrameTracker.PushFrame(constantVar, 4);
     }
 
+    void VisitBinOp(const uSys size, const ssa::SsaBinaryOperation operation, const ssa::SsaType type) noexcept
+    {
+        // Pop `size` bytes from the stack into register B.
+        const VarId regB = IrToSsa::PopRaw(m_Writer, m_FrameTracker, size, type);
+        // Pop `size` bytes from the stack into register A.
+        const VarId regA = IrToSsa::PopRaw(m_Writer, m_FrameTracker, size, type);
+        // Operate B to A.
+        const VarId res = m_Writer.WriteBinOpVtoV(operation, type, regA, regB);
+        // Push result onto the stack.
+        m_FrameTracker.PushFrame(res, size);
+    }
+
 #define VISIT_BASIC_BIN_OP_I32(OPERATION) \
     void Visit##OPERATION##I32() noexcept { \
         VisitBinOp(4, ssa::SsaBinaryOperation::OPERATION, ssa::SsaType::U32); \
@@ -201,25 +215,30 @@ public:
         m_FrameTracker.PushFrame(remainder, 8);
     }
 
-    void VisitBinOp(const uSys size, const ssa::SsaBinaryOperation operation, const ssa::SsaType type) noexcept
+    void VisitComp(const uSys size, const CompareCondition condition, const ssa::SsaType type) noexcept
     {
         // Pop `size` bytes from the stack into register B.
         const VarId regB = IrToSsa::PopRaw(m_Writer, m_FrameTracker, size, type);
         // Pop `size` bytes from the stack into register A.
         const VarId regA = IrToSsa::PopRaw(m_Writer, m_FrameTracker, size, type);
         // Operate B to A.
-        const VarId res = m_Writer.WriteBinOpVtoV(operation, type, regA, regB);
+        const VarId res = m_Writer.WriteCompVtoV(condition, type, regA, regB);
         // Push result onto the stack.
         m_FrameTracker.PushFrame(res, size);
     }
 
-    u32 HandleCallSite(const u32 functionIndex, const u32 moduleIndex) noexcept
+    void VisitCompI32(const CompareCondition condition) noexcept
     {
-        const Function* targetFunction = Modules()[moduleIndex]->Functions()[functionIndex];
-        const DynArray<FunctionArgument>& args = targetFunction->Arguments();
+        VisitComp(4, condition, ssa::SsaType::U32);
+    }
 
-        const VarId baseIndex = m_Writer.IdIndex() + 1;
+    void VisitCompI64(const CompareCondition condition) noexcept
+    {
+        VisitComp(8, condition, ssa::SsaType::U64);
+    }
 
+    u32 HandleFunctionArgs(const DynArray<FunctionArgument>& args) noexcept
+    {
         for(uSys i = 0; i < args.Length(); ++i)
         {
             if(args[i].IsRegister)
@@ -235,6 +254,12 @@ public:
         }
 
         return static_cast<u32>(args.Length());
+    }
+
+    u32 HandleCallSite(const u32 functionIndex, const u32 moduleIndex) noexcept
+    {
+        const Function* targetFunction = m_Modules[moduleIndex]->Functions()[functionIndex];
+        return HandleFunctionArgs(targetFunction->Arguments());
     }
 
     void VisitCall(const u32 functionIndex) noexcept
@@ -253,634 +278,61 @@ public:
         m_FrameTracker.SetArgument(retId, 0);
     }
 
+    u32 HandleIndirectCallSite(const u16 localIndex) noexcept
+    {
+        const TypeInfo* const functionType = m_Function->LocalTypes()[localIndex];
+
+        if(functionType->Size() != 4)
+        {
+            return 0;
+        }
+        
+        return HandleFunctionArgs(DeMangleFunctionName(functionType->Name()));
+    }
+
+    void VisitCallInd(const u16 localIndex) noexcept
+    {
+        const VarId baseIndex = m_Writer.IdIndex() + 1;
+        const u32 argCount = HandleIndirectCallSite(localIndex);
+        const VarId retId = m_Writer.WriteCallInd(m_FrameTracker.GetLocal(localIndex), baseIndex, argCount);
+        m_FrameTracker.SetArgument(retId, 0);
+    }
+
+    void VisitCallIndExt(const u16 localIndex) noexcept
+    {
+        const VarId baseIndex = m_Writer.IdIndex() + 1;
+        const u32 argCount = HandleIndirectCallSite(localIndex);
+        const VarId moduleIndex = IrToSsa::PopRaw(m_Writer, m_FrameTracker, 2, ssa::SsaType::U16);
+        const VarId retId = m_Writer.WriteCallIndExt(m_FrameTracker.GetLocal(localIndex), baseIndex, argCount, moduleIndex);
+        m_FrameTracker.SetArgument(retId, 0);
+    }
+
     void VisitRet() noexcept
     {
         const VarId argVar = m_FrameTracker.GetArgument(0);
         m_Writer.WriteRet(ssa::SsaType::U64, argVar);
     }
 private:
-    [[nodiscard]] const ::std::vector<Ref<Module>>& Modules() noexcept { return *m_Modules; }
-private:
     const Function* m_Function;
     SsaWriter m_Writer;
     SsaFrameTracker m_FrameTracker;
-    const ::std::vector<Ref<Module>>* m_Modules;
+    ModuleList m_Modules;
     u16 m_CurrentModule;
 };
 
-ssa::SsaWriter IrToSsa::TransformFunction(const Function* const function, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
+void IrToSsa::TransformFunction(Function* const function, const ModuleList& modules, const u16 currentModule) noexcept
 {
-    const u8* codePtr = function->Address();
-
     IrToSsaVisitor visitor(function, modules, currentModule);
     visitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 
-    // SsaWriter writer;
-    // SsaFrameTracker frameTracker(function->LocalTypes().count());
-    //
-    // while(false)
-    // {
-    //     u16 opcodeRaw = *codePtr;
-    //     ++codePtr;
-    //
-    //     // Read Second Byte
-    //     if(opcodeRaw & 0x80)
-    //     {
-    //         opcodeRaw <<= 8;
-    //         opcodeRaw |= *codePtr;
-    //         ++codePtr;
-    //     }
-    //
-    //     const Opcode opcode = static_cast<Opcode>(opcodeRaw);
-    //     
-    //     if(opcode == Opcode::Ret)
-    //     {
-    //         break;
-    //     }
-    //
-    //     switch(opcode)
-    //     {
-    //         case Opcode::Nop:
-    //             break;
-    //         case Opcode::Push0:
-    //         {
-    //             const VarId localVar = frameTracker.GetLocal(0);
-    //             const VarId newVar = writer.WriteAssignVariable(GetSsaType(function->LocalTypes()[0]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[0])->Size());
-    //             break;
-    //         }
-    //         case Opcode::Push1:
-    //         {
-    //             const VarId localVar = frameTracker.GetLocal(1);
-    //             const VarId newVar = writer.WriteAssignVariable(GetSsaType(function->LocalTypes()[1]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[1])->Size());
-    //             break;
-    //         }
-    //         case Opcode::Push2:
-    //         {
-    //             const VarId localVar = frameTracker.GetLocal(2);
-    //             const VarId newVar = writer.WriteAssignVariable(GetSsaType(function->LocalTypes()[2]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[2])->Size());
-    //             break;
-    //         }
-    //         case Opcode::Push3:
-    //         {
-    //             const VarId localVar = frameTracker.GetLocal(3);
-    //             const VarId newVar = writer.WriteAssignVariable(GetSsaType(function->LocalTypes()[3]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[3])->Size());
-    //             break;
-    //         }
-    //         case Opcode::PushN:
-    //         {
-    //             const u16 localIndex = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //             
-    //             const VarId localVar = frameTracker.GetLocal(localIndex);
-    //             const VarId newVar = writer.WriteAssignVariable(GetSsaType(function->LocalTypes()[localIndex]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[localIndex])->Size());
-    //             break;
-    //         }
-    //         case Opcode::PushArg0:
-    //         {
-    //             const VarId newVar = writer.WriteAssignVariable(ssa::SsaType::U64, 0x80000000);
-    //             frameTracker.PushFrame(newVar, 8);
-    //             break;
-    //         }
-    //         case Opcode::PushArg1:
-    //         {
-    //             const VarId newVar = writer.WriteAssignVariable(ssa::SsaType::U64, 0x80000001);
-    //             frameTracker.PushFrame(newVar, 8);
-    //             break;
-    //         }
-    //         case Opcode::PushArg2:
-    //         {
-    //             const VarId newVar = writer.WriteAssignVariable(ssa::SsaType::U64, 0x80000002);
-    //             frameTracker.PushFrame(newVar, 8);
-    //             break;
-    //         }
-    //         case Opcode::PushArg3:
-    //         {
-    //             const VarId newVar = writer.WriteAssignVariable(ssa::SsaType::U64, 0x80000003);
-    //             frameTracker.PushFrame(newVar, 8);
-    //             break;
-    //         }
-    //         case Opcode::PushArgN:
-    //         {
-    //             const u16 localIndex = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //             
-    //             const VarId newVar = writer.WriteAssignVariable(ssa::SsaType::U64, localIndex | 0x80000000);
-    //             frameTracker.PushFrame(newVar, 8);
-    //             break;
-    //         }
-    //         case Opcode::PushPtr:
-    //         {
-    //             const u16 localIndex = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //             
-    //             const VarId localVar = frameTracker.GetLocal(localIndex);
-    //             const VarId newVar = writer.WriteLoad(GetSsaType(function->LocalTypes()[localIndex]), localVar);
-    //             frameTracker.PushFrame(newVar, TypeInfo::StripPointer(function->LocalTypes()[0])->Size());
-    //             break;
-    //         }
-    //         case Opcode::Pop0:
-    //         {
-    //             PopLocal(function, writer, frameTracker, 0);
-    //             break;
-    //         }
-    //         case Opcode::Pop1:
-    //         {
-    //             PopLocal(function, writer, frameTracker, 1);
-    //             break;
-    //         }
-    //         case Opcode::Pop2:
-    //         {
-    //             PopLocal(function, writer, frameTracker, 2);
-    //             break;
-    //         }
-    //         case Opcode::Pop3:
-    //         {
-    //             PopLocal(function, writer, frameTracker, 3);
-    //             break;
-    //         }
-    //         case Opcode::PopN:
-    //         {
-    //             const u16 localIndex = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //             
-    //             PopLocal(function, writer, frameTracker, localIndex);
-    //             break;
-    //         }
-    //         case Opcode::PopArg0:
-    //         {
-    //             PopArgument(function, writer, frameTracker, 0);
-    //             break;
-    //         }
-    //         case Opcode::PopArg1:
-    //         {
-    //             PopArgument(function, writer, frameTracker, 1);
-    //             break;
-    //         }
-    //         case Opcode::PopArg2:
-    //         {
-    //             PopArgument(function, writer, frameTracker, 2);
-    //             break;
-    //         }
-    //         case Opcode::PopArg3:
-    //         {
-    //             PopArgument(function, writer, frameTracker, 3);
-    //             break;
-    //         }
-    //         case Opcode::PopArgN:
-    //         {
-    //             const u8 argIndex = *codePtr;
-    //             ++codePtr;
-    //             
-    //             PopArgument(function, writer, frameTracker, argIndex);
-    //             break;
-    //         }
-    //         case Opcode::PopPtr:
-    //         {
-    //             const u16 localIndex = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //             
-    //             const TypeInfo& typeInfo = *TypeInfo::StripPointer(function->LocalTypes()[localIndex]);
-    //             
-    //             const VarId dataDest = frameTracker.GetLocal(localIndex);
-    //             const VarId newVar = PopRaw(writer, frameTracker, typeInfo.Size(), GetSsaType(typeInfo));
-    //
-    //             writer.WriteStoreV(GetSsaType(typeInfo), dataDest, newVar);
-    //             break;
-    //         }
-    //         case Opcode::PopCount:
-    //         {
-    //             const u16 popCount = *reinterpret_cast<const u16*>(codePtr);
-    //             codePtr += 2;
-    //
-    //             // Pop popCount bytes from the stack and store it in a discard raw byte buffer.
-    //             (void) PopRaw(writer, frameTracker, popCount, ssa::SsaType::Bytes);
-    //             break;
-    //         }
-    //         case Opcode::Dup1:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId dupeTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Push the popped data back onto the stack twice.
-    //             frameTracker.PushFrame(dupeTarget, 1);
-    //             frameTracker.PushFrame(dupeTarget, 1);
-    //             break;
-    //         }
-    //         case Opcode::Dup2:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId dupeTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Push the popped data back onto the stack twice.
-    //             frameTracker.PushFrame(dupeTarget, 2);
-    //             frameTracker.PushFrame(dupeTarget, 2);
-    //             break;
-    //         }
-    //         case Opcode::Dup4:
-    //         {
-    //             // Pop off 4 bytes from the stack.
-    //             const VarId dupeTarget = PopRaw(writer, frameTracker, 4, ssa::SsaType::Bytes);
-    //             // Push the popped data back onto the stack twice.
-    //             frameTracker.PushFrame(dupeTarget, 4);
-    //             frameTracker.PushFrame(dupeTarget, 4);
-    //             break;
-    //         }
-    //         case Opcode::Dup8:
-    //         {
-    //             // Pop off 8 bytes from the stack.
-    //             const VarId dupeTarget = PopRaw(writer, frameTracker, 8, ssa::SsaType::Bytes);
-    //             // Push the popped data back onto the stack twice.
-    //             frameTracker.PushFrame(dupeTarget, 8);
-    //             frameTracker.PushFrame(dupeTarget, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX12:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Sign Extend to 2 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I16, ssa::SsaType::I8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 2);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX14:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Sign Extend to 4 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I32, ssa::SsaType::I8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 4);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX18:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Sign Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I64, ssa::SsaType::I8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX24:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Sign Extend to 4 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I32, ssa::SsaType::I16, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 4);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX28:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Sign Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I64, ssa::SsaType::I16, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandSX48:
-    //         {
-    //             // Pop off 4 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 4, ssa::SsaType::Bytes);
-    //             // Sign Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandSX(ssa::SsaType::I64, ssa::SsaType::I32, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX12:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Zero Extend to 2 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U16, ssa::SsaType::U8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 2);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX14:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Zero Extend to 4 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U32, ssa::SsaType::U8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 4);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX18:
-    //         {
-    //             // Pop off 1 byte from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 1, ssa::SsaType::Bytes);
-    //             // Zero Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U64, ssa::SsaType::U8, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX24:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Zero Extend to 4 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U32, ssa::SsaType::U16, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 4);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX28:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Zero Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U64, ssa::SsaType::U16, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::ExpandZX48:
-    //         {
-    //             // Pop off 4 bytes from the stack.
-    //             const VarId expandTarget = PopRaw(writer, frameTracker, 4, ssa::SsaType::Bytes);
-    //             // Zero Extend to 8 bytes.
-    //             const VarId expanded = writer.WriteExpandZX(ssa::SsaType::U64, ssa::SsaType::U16, expandTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 8);
-    //             break;
-    //         }
-    //         case Opcode::Trunc84:
-    //         {
-    //             // Pop off 8 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 8, ssa::SsaType::Bytes);
-    //             // Truncate to 4 bytes.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U32, ssa::SsaType::U64, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 4);
-    //             break;
-    //         }
-    //         case Opcode::Trunc82:
-    //         {
-    //             // Pop off 8 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 8, ssa::SsaType::Bytes);
-    //             // Truncate to 2 bytes.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U16, ssa::SsaType::U64, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 2);
-    //             break;
-    //         }
-    //         case Opcode::Trunc81:
-    //         {
-    //             // Pop off 8 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 8, ssa::SsaType::Bytes);
-    //             // Truncate to 1 byte.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U8, ssa::SsaType::U64, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 1);
-    //             break;
-    //         }
-    //         case Opcode::Trunc42:
-    //         {
-    //             // Pop off 4 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 4, ssa::SsaType::Bytes);
-    //             // Truncate to 2 bytes.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U16, ssa::SsaType::U32, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 2);
-    //             break;
-    //         }
-    //         case Opcode::Trunc41:
-    //         {
-    //             // Pop off 4 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 4, ssa::SsaType::Bytes);
-    //             // Truncate to 1 byte.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U8, ssa::SsaType::U32, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 1);
-    //             break;
-    //         }
-    //         case Opcode::Trunc21:
-    //         {
-    //             // Pop off 2 bytes from the stack.
-    //             const VarId truncTarget = PopRaw(writer, frameTracker, 2, ssa::SsaType::Bytes);
-    //             // Truncate to 1 byte.
-    //             const VarId expanded = writer.WriteTrunc(ssa::SsaType::U8, ssa::SsaType::U16, truncTarget);
-    //             // Push onto stack.
-    //             frameTracker.PushFrame(expanded, 1);
-    //             break;
-    //         }
-    //         case Opcode::Const0:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 0;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::Const1:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 1;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::Const2:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 2;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::Const3:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 3;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::Const4:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 4;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::ConstFF:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 0xFFFFFFFF;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::Const7F:
-    //         {
-    //             // The constant to push onto the stack.
-    //             constexpr u32 value = 0x7FFFFFFF;
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::ConstN:
-    //         {
-    //             // The constant to push onto the stack.
-    //             const u32 value = *reinterpret_cast<const u32*>(codePtr);
-    //             codePtr += 4;
-    //
-    //             // Assign the variable.
-    //             const VarId constant = writer.WriteAssignImmediate(ssa::SsaType::U32, &value, sizeof(value));
-    //             // Push onto the stack.
-    //             frameTracker.PushFrame(constant, 4);
-    //             break;
-    //         }
-    //         case Opcode::AddI32:
-    //         {
-    //             // Pop 4 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Pop 4 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Add B to A.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Add, ssa::SsaType::U32, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 4);
-    //             break;
-    //         }
-    //         case Opcode::AddI64:
-    //         {
-    //             // Pop 8 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Pop 8 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Add B to A.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Add, ssa::SsaType::U64, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 8);
-    //             break;
-    //         }
-    //         case Opcode::SubI32:
-    //         {
-    //             // Pop 4 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Pop 4 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Subtract B from A.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Sub, ssa::SsaType::U32, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 4);
-    //             break;
-    //         }
-    //         case Opcode::SubI64:
-    //         {
-    //             // Pop 8 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Pop 8 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Subtract B from A.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Sub, ssa::SsaType::U64, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 8);
-    //             break;
-    //         }
-    //         case Opcode::MulI32:
-    //         {
-    //             // Pop 4 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Pop 4 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Multiply A by B.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Mul, ssa::SsaType::U32, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 4);
-    //             break;
-    //         }
-    //         case Opcode::MulI64:
-    //         {
-    //             // Pop 8 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Pop 8 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Multiply A by B.
-    //             const VarId res = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Mul, ssa::SsaType::U64, regA, regB);
-    //             // Push result onto the stack.
-    //             frameTracker.PushFrame(res, 8);
-    //             break;
-    //         }
-    //         case Opcode::DivI32:
-    //         {
-    //             // Pop 4 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Pop 4 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 4, ssa::SsaType::U32);
-    //             // Divide A by B.
-    //             const VarId quotient = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Div, ssa::SsaType::U32, regA, regB);
-    //             // Modulo A by B.
-    //             const VarId remainder = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Rem, ssa::SsaType::U32, regA, regB);
-    //             // Push the quotient onto the stack.
-    //             frameTracker.PushFrame(quotient, 4);
-    //             // Push the remainder onto the stack.
-    //             frameTracker.PushFrame(remainder, 4);
-    //             break;
-    //         }
-    //         case Opcode::DivI64:
-    //         {
-    //             // Pop 8 bytes from the stack into register B.
-    //             const VarId regB = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Pop 8 bytes from the stack into register A.
-    //             const VarId regA = PopRaw(writer, frameTracker, 8, ssa::SsaType::U64);
-    //             // Divide A by B.
-    //             const VarId quotient = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Div, ssa::SsaType::U64, regA, regB);
-    //             // Modulo A by B.
-    //             const VarId remainder = writer.WriteBinOpVtoV(ssa::SsaBinaryOperation::Rem, ssa::SsaType::U64, regA, regB);
-    //             // Push the quotient onto the stack.
-    //             frameTracker.PushFrame(quotient, 8);
-    //             // Push the remainder onto the stack.
-    //             frameTracker.PushFrame(remainder, 8);
-    //             break;
-    //         }
-    //         case Opcode::Call:
-    //         {
-    //             break;
-    //         }
-    //         case Opcode::CallExt:
-    //         {
-    //             break;
-    //         }
-    //         case Opcode::CallInd:
-    //         {
-    //             break;
-    //         }
-    //         default:
-    //             break;
-    //     }
-    // }
-
-    return ::std::move(visitor.Writer());
+    if(function->Attachment())
+    {
+        function->Attachment()->Attach(new ssa::SsaFunctionAttachment(::std::move(visitor.Writer())));
+    }
+    else
+    {
+        function->Attachment() = Ref<ssa::SsaFunctionAttachment>(::std::move(visitor.Writer()));
+    }
 }
     
 IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, const uSys size, const ssa::SsaType ssaType)
@@ -893,8 +345,8 @@ IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker,
     if(frameSize == size)
     {
         // Assign new var from the popped frame.
-        const VarId newVar = writer.WriteAssignVariable(ssaType, frame.Var);
-        return newVar;
+        // const VarId newVar = writer.WriteAssignVariable(ssaType, frame.Var);
+        return frame.Var;
     }
     else
     {

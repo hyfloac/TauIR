@@ -1,8 +1,25 @@
 #pragma once
 
 #include <NumTypes.hpp>
+#include <EnumBitFields.hpp>
 
 namespace tau::ir {
+
+enum class CompareCondition : u8
+{
+    Above          = 0x0000,
+    AboveOrEqual   = 0x0001,
+    Below          = 0x0002,
+    BelowOrEqual   = 0x0003,
+    Equal          = 0x0004,
+    Greater        = 0x0005,
+    GreaterOrEqual = 0x0006,
+    Less           = 0x0007,
+    LessOrEqual    = 0x0008,
+    NotEqual       = 0x0009,
+};
+
+ENUM_FLAGS(CompareCondition);
 
 enum class Opcode : u16
 {

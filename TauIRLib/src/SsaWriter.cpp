@@ -3,8 +3,7 @@
 #include <new>
 #include <cstring>
 #include <stdexcept>
-
-#define MAX_ARGUMENT_COUNT (256)
+#include "TauIR/Common.hpp"
 
 namespace tau::ir::ssa {
 
@@ -72,7 +71,7 @@ void SsaWriter::EnsureSize(const uSys additionalSize) noexcept
 
     const uSys newSize = maxT(m_BufferSize + (m_BufferSize >> 1), m_WriteIndex + additionalSize);
     u8* const newBuffer = new(::std::nothrow) u8[newSize];
-    (void) ::std::memcpy(newBuffer, m_Buffer, m_BufferSize);
+    (void) ::std::memcpy(newBuffer, m_Buffer, sizeof(newBuffer[0]) * m_WriteIndex);
     m_BufferSize = newSize;
     delete[] m_Buffer;
     m_Buffer = newBuffer;
@@ -205,7 +204,7 @@ VarId SsaWriter::WriteComputePtr(const VarId base, const VarId index, const i8 m
     return ++m_IdIndex;
 }
 
-VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const VarId b)
+VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const VarId b) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpVtoV) + sizeof(operation) + type.Size() + sizeof(a) + sizeof(b));
     WriteOpcode(SsaOpcode::BinOpVtoV);
@@ -217,7 +216,7 @@ VarId SsaWriter::WriteBinOpVtoV(const SsaBinaryOperation operation, const SsaCus
     return ++m_IdIndex;
 }
 
-VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, const SsaCustomType type, const void* const aValue, const uSys aSize, const VarId b)
+VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, const SsaCustomType type, const void* const aValue, const uSys aSize, const VarId b) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpVtoI) + sizeof(operation) + type.Size() + aSize + sizeof(b));
     WriteOpcode(SsaOpcode::BinOpVtoI);
@@ -229,7 +228,7 @@ VarId SsaWriter::WriteBinOpVtoI(const SsaBinaryOperation operation, const SsaCus
     return ++m_IdIndex;
 }
 
-VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const void* const bValue, const uSys bSize)
+VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, const SsaCustomType type, const VarId a, const void* const bValue, const uSys bSize) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::BinOpItoV) + sizeof(operation) + type.Size() + sizeof(a) + bSize);
     WriteOpcode(SsaOpcode::BinOpItoV);
@@ -239,60 +238,6 @@ VarId SsaWriter::WriteBinOpItoV(const SsaBinaryOperation operation, const SsaCus
     WriteRaw(bValue, bSize);
     m_VarTypeMap.push_back(type);
     return ++m_IdIndex;
-}
-
-VarId SsaWriter::WriteCall(const u32 function, const u32 baseIndex, const u32 parameterCount)
-{
-    EnsureSize(GetOpCodeSize(SsaOpcode::Call) + 3 * sizeof(u32));
-    WriteOpcode(SsaOpcode::Call);
-    WriteT(function);
-    WriteT(baseIndex);
-    WriteT(parameterCount);
-    m_VarTypeMap.push_back(SsaType::U64);
-    return ++m_IdIndex;
-}
-
-VarId SsaWriter::WriteCallExt(const u32 function, const u32 baseIndex, const u32 parameterCount, const u16 moduleIndex)
-{
-    EnsureSize(GetOpCodeSize(SsaOpcode::CallExt) + 3 * sizeof(u32) + sizeof(moduleIndex));
-    WriteOpcode(SsaOpcode::CallExt);
-    WriteT(function);
-    WriteT(baseIndex);
-    WriteT(parameterCount);
-    WriteT(moduleIndex);
-    m_VarTypeMap.push_back(SsaType::U64);
-    return ++m_IdIndex;
-}
-
-VarId SsaWriter::WriteCallInd(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount)
-{
-    EnsureSize(GetOpCodeSize(SsaOpcode::CallInd) + 3 * sizeof(u32));
-    WriteOpcode(SsaOpcode::CallInd);
-    WriteT(functionPointer);
-    WriteT(baseIndex);
-    WriteT(parameterCount);
-    m_VarTypeMap.push_back(SsaType::U64);
-    return ++m_IdIndex;
-}
-
-VarId SsaWriter::WriteCallIndExt(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount, const u32 modulePointer)
-{
-    EnsureSize(GetOpCodeSize(SsaOpcode::CallIndExt) + 4 * sizeof(u32));
-    WriteOpcode(SsaOpcode::CallIndExt);
-    WriteT(functionPointer);
-    WriteT(baseIndex);
-    WriteT(parameterCount);
-    WriteT(modulePointer);
-    m_VarTypeMap.push_back(SsaType::U64);
-    return ++m_IdIndex;
-}
-
-void SsaWriter::WriteRet(const SsaCustomType returnType, const VarId var) noexcept
-{
-    EnsureSize(GetOpCodeSize(SsaOpcode::Ret) + returnType.Size() + sizeof(var));
-    WriteOpcode(SsaOpcode::Ret);
-    WriteType(returnType);
-    WriteT(var);
 }
 
 VarId SsaWriter::WriteSplit(const SsaCustomType aType, const VarId a, const u32 n, const SsaCustomType* const t) noexcept
@@ -331,6 +276,96 @@ VarId SsaWriter::WriteJoin(const SsaCustomType outType, const u32 n, const SsaCu
     return ++m_IdIndex;
 }
 
+VarId SsaWriter::WriteCompVtoV(const CompareCondition condition, const SsaCustomType type, const VarId a, const VarId b) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CompVtoV) + sizeof(condition) + type.Size() + sizeof(a) + sizeof(b));
+    WriteOpcode(SsaOpcode::CompVtoV);
+    WriteT(condition);
+    WriteType(type);
+    WriteT(a);
+    WriteT(b);
+    m_VarTypeMap.push_back(type);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCompVtoI(const CompareCondition condition, const SsaCustomType type, const void* const aValue, const uSys aSize, const VarId b) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CompVtoI) + sizeof(condition) + type.Size() + aSize + sizeof(b));
+    WriteOpcode(SsaOpcode::CompVtoI);
+    WriteT(condition);
+    WriteType(type);
+    WriteRaw(aValue, aSize);
+    WriteT(b);
+    m_VarTypeMap.push_back(type);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCompItoV(const CompareCondition condition, const SsaCustomType type, const VarId a, const void* const bValue, const uSys bSize) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CompItoV) + sizeof(condition) + type.Size() + sizeof(a) + bSize);
+    WriteOpcode(SsaOpcode::CompItoV);
+    WriteT(condition);
+    WriteType(type);
+    WriteT(a);
+    WriteRaw(bValue, bSize);
+    m_VarTypeMap.push_back(type);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCall(const u32 function, const u32 baseIndex, const u32 parameterCount) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::Call) + 3 * sizeof(u32));
+    WriteOpcode(SsaOpcode::Call);
+    WriteT(function);
+    WriteT(baseIndex);
+    WriteT(parameterCount);
+    m_VarTypeMap.push_back(SsaType::U64);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCallExt(const u32 function, const u32 baseIndex, const u32 parameterCount, const u16 moduleIndex) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CallExt) + 3 * sizeof(u32) + sizeof(moduleIndex));
+    WriteOpcode(SsaOpcode::CallExt);
+    WriteT(function);
+    WriteT(baseIndex);
+    WriteT(parameterCount);
+    WriteT(moduleIndex);
+    m_VarTypeMap.push_back(SsaType::U64);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCallInd(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CallInd) + 3 * sizeof(u32));
+    WriteOpcode(SsaOpcode::CallInd);
+    WriteT(functionPointer);
+    WriteT(baseIndex);
+    WriteT(parameterCount);
+    m_VarTypeMap.push_back(SsaType::U64);
+    return ++m_IdIndex;
+}
+
+VarId SsaWriter::WriteCallIndExt(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount, const u32 modulePointer) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::CallIndExt) + 4 * sizeof(u32));
+    WriteOpcode(SsaOpcode::CallIndExt);
+    WriteT(functionPointer);
+    WriteT(baseIndex);
+    WriteT(parameterCount);
+    WriteT(modulePointer);
+    m_VarTypeMap.push_back(SsaType::U64);
+    return ++m_IdIndex;
+}
+
+void SsaWriter::WriteRet(const SsaCustomType returnType, const VarId var) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::Ret) + returnType.Size() + sizeof(var));
+    WriteOpcode(SsaOpcode::Ret);
+    WriteType(returnType);
+    WriteT(var);
+}
+
 void SsaWriter::WriteRaw(const void* const value, const uSys size) noexcept
 {
     EnsureSize(size);
@@ -352,7 +387,7 @@ void SsaWriter::WriteOpcode(const SsaOpcode opcode) noexcept
     }
 }
 
-void SsaWriter::WriteType(SsaCustomType type) noexcept
+void SsaWriter::WriteType(const SsaCustomType type) noexcept
 {
     WriteT(type.Type);
     const SsaType rawType = StripPointer(type.Type);
@@ -365,12 +400,12 @@ void SsaWriter::WriteType(SsaCustomType type) noexcept
 
 SsaFrameTracker::SsaFrameTracker(const uSys localCount) noexcept
     : m_Locals(new(::std::nothrow) VarId[localCount])
-    , m_Arguments(new(::std::nothrow) VarId[MAX_ARGUMENT_COUNT])
+    , m_Arguments(new(::std::nothrow) VarId[MaxArgumentRegisters])
 #ifdef _DEBUG
     , m_LocalCount(localCount)
 #endif
 {
-    for(u32 i = 0; i < MAX_ARGUMENT_COUNT; ++i)
+    for(u32 i = 0; i < MaxArgumentRegisters; ++i)
     {
         m_Arguments[i] = i | 0x80000000;
     }
@@ -465,9 +500,9 @@ VarId SsaFrameTracker::GetLocal(const uSys local) const
 void SsaFrameTracker::SetArgument(const VarId var, const uSys arg)
 {
 #ifdef _DEBUG
-    if(arg > MAX_ARGUMENT_COUNT)
+    if(arg > MaxArgumentRegisters)
     {
-        throw ::std::invalid_argument("local");
+        throw ::std::invalid_argument("arg");
     }
 #endif
 
@@ -477,9 +512,9 @@ void SsaFrameTracker::SetArgument(const VarId var, const uSys arg)
 VarId SsaFrameTracker::GetArgument(const uSys arg) const
 {
 #ifdef _DEBUG
-    if(arg > MAX_ARGUMENT_COUNT)
+    if(arg > MaxArgumentRegisters)
     {
-        throw ::std::invalid_argument("local");
+        throw ::std::invalid_argument("arg");
     }
 #endif
 

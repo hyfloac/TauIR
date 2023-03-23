@@ -18,7 +18,7 @@ void Emulator::Execute() noexcept
 
     // Get a reference to the first module.
     // The entry-point is the first function in the first module.
-    const Ref<Module>& mainModule = m_Modules[0];
+    const ModuleRef& mainModule = m_Modules[0];
 
     // If the first module is null we have some problems.
     if(!mainModule)
@@ -608,7 +608,8 @@ void Emulator::Executor(const Function* function, const Module* module) noexcept
             }
             case Opcode::CallInd:
             {
-                const u32 functionIndex = PopValue<u32>();
+                const u16 localIndex = ReadCodeValue<u16>(codePtr);
+                const u32 functionIndex = GetLocal<u32>(function, localsHead, localIndex);
 
                 CALL_PUSH();
 
@@ -622,9 +623,11 @@ void Emulator::Executor(const Function* function, const Module* module) noexcept
             }
             case Opcode::CallIndExt:
             {
-                const u32 functionIndex = PopValue<u32>();
+                const u16 localIndex = ReadCodeValue<u16>(codePtr);
                 const u16 moduleIndex = PopValue<u16>();
-                
+
+                const u32 functionIndex = GetLocal<u32>(function, localsHead, localIndex);
+
                 const Module* const targetModule = m_Modules[moduleIndex].Get();
 
                 if(targetModule->IsNative())

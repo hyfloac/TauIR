@@ -9,14 +9,13 @@ namespace tau::ir {
 
 class Function;
 class Module;
+using ModuleList = ::std::vector<ModuleRef>;
 
 class Emulator
 {
 public:
-    using ModuleList = ::std::vector<Ref<Module>>;
     using ArgumentRegisterType = u64;
-
-    static inline constexpr uSys MaxArgumentRegisters = 64;
+    
     static inline constexpr uSys PointerSize = sizeof(void*);
 
     template<typename T>
@@ -31,6 +30,19 @@ public:
         uSys Offset;
     };
 public:
+    explicit Emulator(const ModuleList& modules)
+        : m_Modules(modules)
+        , m_ExecutionStack(ExecutionStackSize<uSys>)
+        , m_LocalsStack(LocalsStackSize<uSys>)
+        , m_Arguments(MaxArgumentRegisters)
+        , m_ExecutionStackPointer(0)
+        , m_LocalsStackPointer(0)
+    {
+        (void) ::std::memset(m_ExecutionStack.arr(), 0, m_ExecutionStack.size());
+        (void) ::std::memset(m_LocalsStack.arr(), 0, m_LocalsStack.size());
+        (void) ::std::memset(m_Arguments.arr(), 0, m_Arguments.size() * sizeof(u64));
+    }
+
     explicit Emulator(ModuleList&& modules)
         : m_Modules(::std::move(modules))
         , m_ExecutionStack(ExecutionStackSize<uSys>)
@@ -44,12 +56,12 @@ public:
         (void) ::std::memset(m_Arguments.arr(), 0, m_Arguments.size() * sizeof(u64));
     }
 
-    void LoadModule(const Ref<Module>& module)
+    void LoadModule(const ModuleRef& module)
     {
         m_Modules.push_back(module);
     }
 
-    void LoadModule(Ref<Module>&& module)
+    void LoadModule(ModuleRef&& module)
     {
         m_Modules.push_back(::std::move(module));
     }

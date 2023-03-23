@@ -106,6 +106,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\TauIR\FunctionNameMangler.hpp" />
     <ClInclude Include="include\TauIR\Common.hpp" />
     <ClInclude Include="include\TauIR\Emulator.hpp" />
     <ClInclude Include="include\TauIR\Function.hpp" />
@@ -115,6 +116,8 @@
     <ClInclude Include="include\TauIR\Opcodes.hpp" />
     <ClInclude Include="include\TauIR\CompileControls.hpp" />
     <ClInclude Include="include\TauIR\ssa\opto\ConstantProp.hpp" />
+    <ClInclude Include="include\TauIR\ssa\opto\Inliner.hpp" />
+    <ClInclude Include="include\TauIR\ssa\SsaFunctionAttachment.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaVisitor.hpp" />
     <ClInclude Include="include\TauIR\TypeInfo.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaOpcodes.hpp" />
@@ -124,8 +127,10 @@
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp" />
     <ClCompile Include="src\Function.cpp" />
+    <ClCompile Include="src\FunctionNameMangler.cpp" />
     <ClCompile Include="src\IrToSsa.cpp" />
     <ClCompile Include="src\Module.cpp" />
+    <ClCompile Include="src\SsaFunctionAttachment.cpp" />
     <ClCompile Include="src\SsaTypeRegistry.cpp" />
     <ClCompile Include="src\SsaWriter.cpp" />
     <ClCompile Include="src\TypeInfo.cpp" />

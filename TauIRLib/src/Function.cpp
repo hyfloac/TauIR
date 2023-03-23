@@ -5,6 +5,20 @@
 
 namespace tau::ir {
 
+RTT_BASE_IMPL_TU(FunctionAttachment);
+
+void FunctionAttachment::Attach(FunctionAttachment* attachment) noexcept
+{
+    FunctionAttachment* next = m_Next;
+
+    while(next->m_Next)
+    {
+        next = next->m_Next;
+    }
+
+    next->m_Next = attachment;
+}
+
 static thread_local FixedBlockAllocator<TAU_IR_ALLOCATION_TRACKING> g_allocator(sizeof(Function));
 
 void* Function::operator new(const ::std::size_t sz) noexcept
@@ -28,30 +42,30 @@ void Function::operator delete(void* const ptr) noexcept
 }
 
     
-void Function::LoadLocalOffsets() noexcept
+void FunctionBuilder::LoadLocalOffsets() noexcept
 {
-    if(m_LocalTypes.count() == 0)
+    if(GetLocalTypes().count() == 0)
     {
         return;
     }
 
     uSys currentOffset;
 
-    if(TypeInfo::IsPointer(m_LocalTypes[0]))
+    if(TypeInfo::IsPointer(GetLocalTypes()[0]))
     {
         currentOffset = sizeof(void*);
     }
     else
     {
-        currentOffset = TypeInfo::StripPointer(m_LocalTypes[0])->Size();
+        currentOffset = TypeInfo::StripPointer(GetLocalTypes()[0])->Size();
     }
 
-    for(uSys i = 1; i < m_LocalTypes.count(); ++i)
+    for(uSys i = 1; i < GetLocalTypes().count(); ++i)
     {
-        m_LocalOffsets[i - 1] = currentOffset;
-        if(TypeInfo::IsPointer(m_LocalTypes[i]))
+        GetLocalOffsets()[i - 1] = currentOffset;
+        if(TypeInfo::IsPointer(GetLocalTypes()[i]))
         {
-            currentOffset += TypeInfo::StripPointer(m_LocalTypes[i])->Size();
+            currentOffset += TypeInfo::StripPointer(GetLocalTypes()[i])->Size();
         }
         else
         {

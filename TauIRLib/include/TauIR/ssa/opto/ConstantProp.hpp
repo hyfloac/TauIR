@@ -96,6 +96,16 @@ public:
 	{ }
 
 	[[nodiscard]] const SsaWriter& Writer() const noexcept { return m_Writer; }
+
+	void UpdateAttachment(Function* const function) noexcept
+	{
+        SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+		if(ssaAttachment)
+		{
+			ssaAttachment->Writer() = ::std::move(m_Writer);
+		}
+	}
 public:
 	bool PreTraversal(const u8* const codePtr, const uSys size, const VarId maxId) noexcept
 	{
@@ -586,6 +596,145 @@ public:
 		return true;
 	}
 
+	bool VisitCompVToV(const VarId newVar, const CompareCondition condition, const SsaCustomType type, const VarId a, const VarId b) noexcept
+	{
+		if(type.CustomType != static_cast<u32>(-1))
+		{
+			return false;
+		}
+
+		switch(type.Type)
+		{
+			case SsaType::Void:
+			case SsaType::Bool:
+				return false;
+			default:
+				break;
+		}
+
+		const bool aIsArg = (a & 0x80000000) != 0;
+		const bool bIsArg = (b & 0x80000000) != 0;
+
+		if(aIsArg && bIsArg)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompVtoV(condition, type, a, b);
+			return true;
+		}
+
+		const bool aIsValue = !aIsArg && !m_Linkages[a].IsVar();
+		const bool bIsValue = !bIsArg && !m_Linkages[b].IsVar();
+
+		if(!aIsValue && !bIsValue)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompVtoV(condition, type, FindSourceVar(a), FindSourceVar(b));
+		}
+		else if(aIsValue && bIsValue)
+		{
+			if(m_Linkages[a].Size != m_Linkages[b].Size || m_Linkages[a].Size != TypeValueSize(type.Type))
+			{
+				return false;
+			}
+
+			CompIToI(newVar, condition, type, TypeValueSize(type.Type), m_Linkages[a].Value, m_Linkages[b].Value);
+		}
+		else if(!aIsValue && bIsValue)
+		{
+			if(m_Linkages[b].Size != TypeValueSize(type.Type))
+			{
+				return false;
+			}
+
+			m_NewVarMap[newVar] = m_Writer.WriteCompItoV(condition, type, FindSourceVar(a), m_Linkages[b].Value, m_Linkages[b].Size);
+		}
+		else if(aIsValue && !bIsValue)
+		{
+			if(m_Linkages[a].Size != TypeValueSize(type.Type))
+			{
+				return false;
+			}
+
+			m_NewVarMap[newVar] = m_Writer.WriteCompVtoI(condition, type, m_Linkages[a].Value, m_Linkages[a].Size, FindSourceVar(b));
+		}
+
+		return true;
+	}
+
+	bool VisitCompVToI(const VarId newVar, const CompareCondition condition, const SsaCustomType type, const void* const a, const uSys aSize, const VarId b) noexcept
+	{
+		if(type.CustomType != static_cast<u32>(-1) || aSize != TypeValueSize(type.Type))
+		{
+			return false;
+		}
+
+		switch(type.Type)
+		{
+			case SsaType::Void:
+			case SsaType::Bool:
+				return false;
+			default:
+				break;
+		}
+
+		const bool bIsArg = (b & 0x80000000) != 0;
+
+		if(bIsArg)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompVtoI(condition, type, a, aSize, b);
+			return true;
+		}
+
+		const bool bIsValue = !bIsArg && !m_Linkages[b].IsVar();
+
+		if(!bIsValue)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompVtoI(condition, type, a, aSize, FindSourceVar(b));
+		}
+		else
+		{
+			CompIToI(newVar, condition, type, TypeValueSize(type.Type), a, m_Linkages[b].Value);
+		}
+
+		return true;
+	}
+
+	bool VisitCompIToV(const VarId newVar, const CompareCondition condition, const SsaCustomType type, const VarId a, const void* const b, const uSys bSize) noexcept
+	{
+		if(type.CustomType != static_cast<u32>(-1) || bSize != TypeValueSize(type.Type))
+		{
+			return false;
+		}
+
+		switch(type.Type)
+		{
+			case SsaType::Void:
+			case SsaType::Bool:
+				return false;
+			default:
+				break;
+		}
+
+		const bool aIsArg = (a & 0x80000000) != 0;
+
+		if(aIsArg)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompItoV(condition, type, a, b, bSize);
+			return true;
+		}
+
+		const bool aIsValue = !aIsArg && !m_Linkages[a].IsVar();
+
+		if(!aIsValue)
+		{
+			m_NewVarMap[newVar] = m_Writer.WriteCompItoV(condition, type, FindSourceVar(a), b, bSize);
+		}
+		else
+		{
+			CompIToI(newVar, condition, type, TypeValueSize(type.Type), m_Linkages[a].Value, b);
+		}
+
+		return true;
+	}
+
 	bool VisitCall(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount) noexcept
 	{
 		const VarId source = HandleCall(newVar, baseIndex, parameterCount);
@@ -842,9 +991,6 @@ private:
 			case SsaBinaryOperation::BarrelShiftRight:
 				result = internal::RotateRight(a, b);
 				break;
-			case SsaBinaryOperation::Comp:
-				throw 0;
-				break;
 		}
 
 		m_NewVarMap[newVar] = m_Writer.WriteAssignImmediate(type, &result, sizeof(result));
@@ -890,6 +1036,90 @@ private:
 			}
 		}
 	}
+
+	template<typename T>
+	void CompIToI0(const VarId newVar, const CompareCondition condition, const SsaCustomType type, const T a, const T b)
+	{
+		u8 result = 0;
+
+		switch(condition)
+		{
+			case CompareCondition::Above:
+				result = static_cast<::std::make_unsigned_t<T>>(a) > static_cast<::std::make_unsigned_t<T>>(b);
+				break;
+			case CompareCondition::AboveOrEqual:
+				result = static_cast<::std::make_unsigned_t<T>>(a) >= static_cast<::std::make_unsigned_t<T>>(b);
+				break;
+			case CompareCondition::Below:
+				result = static_cast<::std::make_unsigned_t<T>>(a) < static_cast<::std::make_unsigned_t<T>>(b);
+				break;
+			case CompareCondition::BelowOrEqual:
+				result = static_cast<::std::make_unsigned_t<T>>(a) <= static_cast<::std::make_unsigned_t<T>>(b);
+				break;
+			case CompareCondition::Equal:
+				result = a == b;
+				break;
+			case CompareCondition::Greater:
+				result = static_cast<::std::make_signed_t<T>>(a) > static_cast<::std::make_signed_t<T>>(b);
+				break;
+			case CompareCondition::GreaterOrEqual:
+				result = static_cast<::std::make_signed_t<T>>(a) >= static_cast<::std::make_signed_t<T>>(b);
+				break;
+			case CompareCondition::Less:
+				result = static_cast<::std::make_signed_t<T>>(a) < static_cast<::std::make_signed_t<T>>(b);
+				break;
+			case CompareCondition::LessOrEqual:
+				result = static_cast<::std::make_signed_t<T>>(a) <= static_cast<::std::make_signed_t<T>>(b);
+				break;
+			case CompareCondition::NotEqual:
+				result = a != b;
+				break;
+		}
+
+		m_NewVarMap[newVar] = m_Writer.WriteAssignImmediate(type, &result, sizeof(result));
+		m_Linkages[newVar] = internal::ConstantPropLinkage(m_Writer.Buffer() + m_Writer.Size() - sizeof(result), sizeof(result));
+	}
+
+	void CompIToI(const VarId newVar, const CompareCondition condition, const SsaCustomType type, const uSys bufferSize, const void* const aBuffer, const void* const bBuffer)
+	{
+		if(IsPointer(type.Type))
+		{
+			CompIToI0(newVar, condition, type, *reinterpret_cast<const u64*>(aBuffer), *reinterpret_cast<const u64*>(bBuffer));
+		}
+		else
+		{
+			switch(type.Type)
+			{
+				case SsaType::I8:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const i8*>(aBuffer), *reinterpret_cast<const i8*>(bBuffer));
+					break;
+				case SsaType::U8:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const u8*>(aBuffer), *reinterpret_cast<const u8*>(bBuffer));
+					break;
+				case SsaType::I16:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const i16*>(aBuffer), *reinterpret_cast<const i16*>(bBuffer));
+					break;
+				case SsaType::U16:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const u16*>(aBuffer), *reinterpret_cast<const u16*>(bBuffer));
+					break;
+				case SsaType::I32:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const i32*>(aBuffer), *reinterpret_cast<const i32*>(bBuffer));
+					break;
+				case SsaType::U32:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const u32*>(aBuffer), *reinterpret_cast<const u32*>(bBuffer));
+					break;
+				case SsaType::I64:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const i64*>(aBuffer), *reinterpret_cast<const i64*>(bBuffer));
+					break;
+				case SsaType::U64:
+					CompIToI0(newVar, condition, type, *reinterpret_cast<const u64*>(aBuffer), *reinterpret_cast<const u64*>(bBuffer));
+					break;
+				default:
+					break;
+			}
+		}
+	}
+
 
 	u32 HandleCall(const u32 newVar, const u32 baseIndex, const u32 parameterCount) noexcept
 	{

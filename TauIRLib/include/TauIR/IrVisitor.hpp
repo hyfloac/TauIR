@@ -4,6 +4,7 @@
 namespace tau::ir {
 
 class Function;
+enum class CompareCondition : u8;
 
 #define SIMPLE_TRAVERSE_DECL(OPCODE)   \
     void Traverse##OPCODE() noexcept { \
@@ -21,6 +22,11 @@ class Function;
 #define SIMPLE_2_VALUE_VISIT_DECL(OPERATION, VAL0, VAL1) \
     void Visit##OPERATION##VAL0##VAL1() noexcept {  \
         GetDerived().Visit##OPERATION(VAL0, VAL1);  \
+    }
+
+#define SIMPLE_COMP_VISIT_DECL(TYPE, CONDITION) \
+    void VisitComp##TYPE##CONDITION() noexcept {  \
+        GetDerived().VisitComp##TYPE(CompareCondition::CONDITION);  \
     }
 
 template<typename Derived>
@@ -171,32 +177,39 @@ protected:
     SIMPLE_VISIT_DECL(MulI64);
     SIMPLE_VISIT_DECL(DivI32);
     SIMPLE_VISIT_DECL(DivI64);
-    SIMPLE_VISIT_DECL(CompI32Above);
-    SIMPLE_VISIT_DECL(CompI32AboveOrEqual);
-    SIMPLE_VISIT_DECL(CompI32Below);
-    SIMPLE_VISIT_DECL(CompI32BelowOrEqual);
-    SIMPLE_VISIT_DECL(CompI32Equal);
-    SIMPLE_VISIT_DECL(CompI32Greater);
-    SIMPLE_VISIT_DECL(CompI32GreaterOrEqual);
-    SIMPLE_VISIT_DECL(CompI32Less);
-    SIMPLE_VISIT_DECL(CompI32LessOrEqual);
-    SIMPLE_VISIT_DECL(CompI32NotEqual);
-    SIMPLE_VISIT_DECL(CompI64Above);
-    SIMPLE_VISIT_DECL(CompI64AboveOrEqual);
-    SIMPLE_VISIT_DECL(CompI64Below);
-    SIMPLE_VISIT_DECL(CompI64BelowOrEqual);
-    SIMPLE_VISIT_DECL(CompI64Equal);
-    SIMPLE_VISIT_DECL(CompI64Greater);
-    SIMPLE_VISIT_DECL(CompI64GreaterOrEqual);
-    SIMPLE_VISIT_DECL(CompI64Less);
-    SIMPLE_VISIT_DECL(CompI64LessOrEqual);
-    SIMPLE_VISIT_DECL(CompI64NotEqual);
+
+    void VisitCompI32(CompareCondition condition) noexcept { }
+
+    SIMPLE_COMP_VISIT_DECL(I32, Above);
+    SIMPLE_COMP_VISIT_DECL(I32, AboveOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I32, Below);
+    SIMPLE_COMP_VISIT_DECL(I32, BelowOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I32, Equal);
+    SIMPLE_COMP_VISIT_DECL(I32, Greater);
+    SIMPLE_COMP_VISIT_DECL(I32, GreaterOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I32, Less);
+    SIMPLE_COMP_VISIT_DECL(I32, LessOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I32, NotEqual);
+
+    void VisitCompI64(CompareCondition condition) noexcept { }
+
+    SIMPLE_COMP_VISIT_DECL(I64, Above);
+    SIMPLE_COMP_VISIT_DECL(I64, AboveOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I64, Below);
+    SIMPLE_COMP_VISIT_DECL(I64, BelowOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I64, Equal);
+    SIMPLE_COMP_VISIT_DECL(I64, Greater);
+    SIMPLE_COMP_VISIT_DECL(I64, GreaterOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I64, Less);
+    SIMPLE_COMP_VISIT_DECL(I64, LessOrEqual);
+    SIMPLE_COMP_VISIT_DECL(I64, NotEqual);
 
     void VisitCall(const u32 functionIndex) noexcept { }
     void VisitCallExt(const u32 functionIndex, const u16 moduleIndex) noexcept { }
 
-    SIMPLE_VISIT_DECL(CallInd);
-    SIMPLE_VISIT_DECL(CallIndExt);
+    void VisitCallInd(const u16 localIndex) noexcept { };
+    void VisitCallIndExt(const u16 localIndex) noexcept { };
+
     SIMPLE_VISIT_DECL(Ret);
 
     void VisitJumpPoint(const i32 offset) noexcept { }

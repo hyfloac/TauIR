@@ -7,6 +7,9 @@
 #include <DynArray.hpp>
 #include <TUMaths.hpp>
 #include <String.hpp>
+#include <RunTimeType.hpp>
+
+#include "Common.hpp"
 
 #if defined(__STDCPP_STRICT_POINTER_SAFETY__) && __STDCPP_STRICT_POINTER_SAFETY__ == 1
 #error "You have managed to find the one architecture that has strict pointer safety, unfortunately, we need relaxed pointer safety."
@@ -16,6 +19,8 @@ static_assert(sizeof(u8) == 1, "A byte is not a byte in size.");
 static_assert(CHAR_BIT == 8, "A byte is not 8 bits in size.");
 
 namespace tau::ir {
+
+class Module;
 
 enum class InlineControl : u32
 {
@@ -151,6 +156,30 @@ public:
     { }
 };
 
+class FunctionAttachment
+{
+    DELETE_CM(FunctionAttachment);
+    RTT_BASE_IMPL(FunctionAttachment);
+    RTT_BASE_CHECK(FunctionAttachment);
+    RTT_BASE_CAST(FunctionAttachment);
+protected:
+    FunctionAttachment() noexcept
+        : m_Next(nullptr)
+    { }
+public:
+    virtual ~FunctionAttachment()
+    {
+        delete m_Next;
+    }
+
+    void Attach(FunctionAttachment* attachment) noexcept;
+
+    [[nodiscard]] const FunctionAttachment*  Next() const noexcept { return m_Next; }
+    [[nodiscard]]       FunctionAttachment*& Next()       noexcept { return m_Next; }
+private:
+    FunctionAttachment* m_Next;
+};
+
 class TypeInfo;
 
 class Function final
@@ -158,78 +187,6 @@ class Function final
     DEFAULT_DESTRUCT(Function);
     DEFAULT_CM_PU(Function);
 public:
-    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : m_Address(address)
-		, m_CodeSize(codeSize)
-        , m_LocalSize(0)
-        , m_LocalTypes(localTypes)
-        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
-        , m_Arguments(arguments)
-        , m_Flags(flags)
-    { LoadLocalOffsets(); }
-
-    Function(const u8* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : m_Address(address)
-		, m_CodeSize(codeSize)
-        , m_LocalSize(0)
-        , m_LocalTypes(localTypes)
-        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
-        , m_Arguments(::std::move(arguments))
-        , m_Flags(flags)
-    { LoadLocalOffsets(); }
-
-    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : m_Address(address)
-		, m_CodeSize(codeSize)
-        , m_LocalSize(0)
-        , m_LocalTypes(::std::move(localTypes))
-        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
-        , m_Arguments(arguments)
-        , m_Flags(flags)
-    { LoadLocalOffsets(); }
-    
-    Function(const u8* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : m_Address(address)
-        , m_CodeSize(codeSize)
-        , m_LocalSize(0)
-        , m_LocalTypes(::std::move(localTypes))
-        , m_LocalOffsets(maxT(static_cast<iSys>(m_LocalTypes.count()) - 1, 0))
-        , m_Arguments(::std::move(arguments))
-        , m_Flags(flags)
-    { LoadLocalOffsets(); }
-
-    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, arguments, flags)
-    { }
-
-    Function(const void* const address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, ::std::move(arguments), flags)
-    { }
-
-    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), arguments, flags)
-    { }
-
-    Function(const void* const address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), ::std::move(arguments), flags)
-    { }
-
-    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, arguments, flags) // NOLINT(performance-no-int-to-ptr)
-    { }
-
-    Function(const uPtr address, const uSys codeSize, const DynArray<const TypeInfo*>& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, localTypes, ::std::move(arguments), flags) // NOLINT(performance-no-int-to-ptr)
-    { }
-
-    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, const DynArray<FunctionArgument>& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), arguments, flags) // NOLINT(performance-no-int-to-ptr)
-    { }
-
-    Function(const uPtr address, const uSys codeSize, DynArray<const TypeInfo*>&& localTypes, DynArray<FunctionArgument>&& arguments, const FunctionFlags flags) noexcept
-        : Function(reinterpret_cast<const u8*>(address), codeSize, ::std::move(localTypes), ::std::move(arguments), flags) // NOLINT(performance-no-int-to-ptr)
-    { }
-
     [[nodiscard]] const u8* Address() const noexcept { return m_Address; }
     [[nodiscard]] uSys CodeSize() const noexcept { return m_CodeSize; }
     [[nodiscard]] uSys LocalSize() const noexcept { return m_LocalSize; }
@@ -239,6 +196,38 @@ public:
     [[nodiscard]] FunctionFlags Flags() const noexcept { return m_Flags; }
     [[nodiscard]] const C8DynString& Name() const noexcept { return m_Name; }
     [[nodiscard]]       C8DynString& Name()       noexcept { return m_Name; }
+    [[nodiscard]] const WeakRef<tau::ir::Module>& Module() const noexcept { return m_Module; }
+    [[nodiscard]]       WeakRef<tau::ir::Module>& Module()       noexcept { return m_Module; }
+    [[nodiscard]] const Ref<FunctionAttachment>& Attachment() const noexcept { return m_Attachment; }
+    [[nodiscard]]       Ref<FunctionAttachment>& Attachment()       noexcept { return m_Attachment; }
+
+    template<typename T>
+    T* FindAttachment() noexcept
+    {
+        if(!m_Attachment)
+        {
+            return nullptr;
+        }
+
+        FunctionAttachment* curr = m_Attachment.Get();
+
+        do
+        {
+            if(rtt_check<T>(curr))
+            {
+                return rtt_cast<T>(curr);
+            }
+            curr = curr->Next();
+        } while(curr);
+
+        return nullptr;
+    }
+
+    template<typename T>
+    const T* FindAttachment() const noexcept
+    {
+        return const_cast<Function*>(this)->FindAttachment<T>();
+    }
 public:
     /**
      * Allocate with a fixed block allocator for performance.
@@ -250,7 +239,27 @@ public:
     [[nodiscard]] void* operator new(::std::size_t sz) noexcept;
     void operator delete(void* ptr) noexcept;
 private:
-    void LoadLocalOffsets() noexcept;
+    Function(
+        const u8* const address, 
+        const uSys codeSize, 
+        const uSys localSize, 
+        DynArray<const TypeInfo*>&& localTypes, 
+        DynArray<uSys>&& localOffsets, 
+        DynArray<FunctionArgument>&& arguments,
+        const FunctionFlags flags,
+        const C8DynString& name,
+        Ref<FunctionAttachment>&& attachment
+    ) noexcept
+        : m_Address(address)
+        , m_CodeSize(codeSize)
+        , m_LocalSize(localSize)
+        , m_LocalTypes(::std::move(localTypes))
+        , m_LocalOffsets(::std::move(localOffsets))
+        , m_Arguments(::std::move(arguments))
+        , m_Flags(flags)
+        , m_Name(name)
+        , m_Attachment(attachment)
+    { }
 private:
     /**
      * The address of the IR code.
@@ -278,6 +287,299 @@ private:
     DynArray<FunctionArgument> m_Arguments;
     FunctionFlags m_Flags;
     C8DynString m_Name;
+    WeakRef<tau::ir::Module> m_Module;
+    Ref<FunctionAttachment> m_Attachment;
+
+    friend class FunctionBuilder;
+};
+
+class FunctionBuilder final
+{
+    DELETE_CM(FunctionBuilder);
+public:
+    FunctionBuilder() noexcept
+        : m_Address(nullptr)
+        , m_CodeSize(0)
+        , m_LocalSize(0)
+        , m_LocalTypesRaw{ }
+        , m_LocalOffsetsRaw{ }
+        , m_ArgumentsRaw{ }
+        , m_LocalTypes(nullptr)
+        , m_LocalOffsets(nullptr)
+        , m_Arguments(nullptr)
+        , m_Flags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default)
+        , m_Name()
+        , m_Attachment(nullptr)
+    { }
+
+    ~FunctionBuilder() noexcept
+    {
+        if(m_LocalTypes)
+        {
+            m_LocalTypes->~DynArray();
+        }
+
+        if(m_LocalOffsets)
+        {
+            m_LocalOffsets->~DynArray();
+        }
+
+        if(m_Arguments)
+        {
+            m_Arguments->~DynArray();
+        }
+    }
+
+    FunctionBuilder& Address(const u8* const address) noexcept
+    {
+        m_Address = address;
+        return *this;
+    }
+
+    FunctionBuilder& Address(const void* const address) noexcept
+    {
+        m_Address = reinterpret_cast<const u8*>(address);
+        return *this;
+    }
+
+    FunctionBuilder& Address(const uPtr address) noexcept
+    {
+        m_Address = reinterpret_cast<const u8*>(address);
+        return *this;
+    }
+
+    FunctionBuilder& CodeSize(const uSys codeSize) noexcept
+    {
+        m_CodeSize = codeSize;
+        return *this;
+    }
+
+    FunctionBuilder& CodeSize() noexcept
+    {
+        m_CodeSize = 0;
+        return *this;
+    }
+
+    template<uSys Size>
+    FunctionBuilder& Code(const u8(&code)[Size]) noexcept
+    {
+        m_Address = static_cast<const u8*>(code);
+        m_CodeSize = Size;
+        return *this;
+    }
+
+    template<typename F>
+    FunctionBuilder& Func(const F func) noexcept
+    {
+        m_Address = reinterpret_cast<const u8*>(func);
+        m_CodeSize = 0;
+        m_Flags = FunctionFlags(InlineControl::NoInline, CallingConvention::Cdecl, OptimizationControl::NoOptimize);
+        LocalTypes();
+        return *this;
+    }
+
+    FunctionBuilder& LocalTypes(const DynArray<const TypeInfo*>& localTypes) noexcept
+    {
+        if(m_LocalTypes)
+        {
+            m_LocalTypes->~DynArray();
+        }
+
+        if(m_LocalOffsets)
+        {
+            m_LocalOffsets->~DynArray();
+        }
+
+        m_LocalTypes = ::new(m_LocalTypesRaw) DynArray<const TypeInfo*>(localTypes);
+        m_LocalSize = maxT(static_cast<iSys>(m_LocalTypes->Count()) - 1, 0);
+        m_LocalOffsets = ::new(m_LocalOffsetsRaw) DynArray<uSys>(m_LocalSize);
+        LoadLocalOffsets();
+        return *this;
+    }
+
+    FunctionBuilder& LocalTypes(DynArray<const TypeInfo*>&& localTypes) noexcept
+    {
+        if(m_LocalTypes)
+        {
+            m_LocalTypes->~DynArray();
+        }
+
+        if(m_LocalOffsets)
+        {
+            m_LocalOffsets->~DynArray();
+        }
+
+        m_LocalTypes = ::new(m_LocalTypesRaw) DynArray<const TypeInfo*>(::std::move(localTypes));
+        m_LocalSize = maxT(static_cast<iSys>(m_LocalTypes->Count()) - 1, 0);
+        m_LocalOffsets = ::new(m_LocalOffsetsRaw) DynArray<uSys>(m_LocalSize);
+        LoadLocalOffsets();
+        return *this;
+    }
+
+    FunctionBuilder& LocalTypes() noexcept
+    {
+        if(m_LocalTypes)
+        {
+            m_LocalTypes->~DynArray();
+        }
+
+        if(m_LocalOffsets)
+        {
+            m_LocalOffsets->~DynArray();
+        }
+
+        m_LocalTypes = ::new(m_LocalTypesRaw) DynArray<const TypeInfo*>();
+        m_LocalOffsets = ::new(m_LocalOffsetsRaw) DynArray<uSys>();
+        return *this;
+    }
+
+    FunctionBuilder& Arguments(const DynArray<FunctionArgument>& arguments) noexcept
+    {
+        if(m_Arguments)
+        {
+            m_Arguments->~DynArray();
+        }
+        
+        m_Arguments = ::new(m_ArgumentsRaw) DynArray<FunctionArgument>(arguments);
+        return *this;
+    }
+
+    FunctionBuilder& Arguments(DynArray<FunctionArgument>&& arguments) noexcept
+    {
+        if(m_Arguments)
+        {
+            m_Arguments->~DynArray();
+        }
+        
+        m_Arguments = ::new(m_ArgumentsRaw) DynArray<FunctionArgument>(::std::move(arguments));
+        return *this;
+    }
+
+    FunctionBuilder& Arguments() noexcept
+    {
+        if(m_Arguments)
+        {
+            m_Arguments->~DynArray();
+        }
+
+        m_Arguments = ::new(m_ArgumentsRaw) DynArray<FunctionArgument>();
+        return *this;
+    }
+
+    FunctionBuilder& Flags(const FunctionFlags flags) noexcept
+    {
+        m_Flags = flags;
+        return *this;
+    }
+
+    FunctionBuilder& Flags(const InlineControl inlineControl, const CallingConvention callingConvention, const OptimizationControl optimizationControl) noexcept
+    {
+        m_Flags = FunctionFlags(inlineControl, callingConvention, optimizationControl);
+        return *this;
+    }
+
+    FunctionBuilder& Flags() noexcept
+    {
+        m_Flags = FunctionFlags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default);
+        return *this;
+    }
+
+    FunctionBuilder& Name(const C8DynString& name) noexcept
+    {
+        m_Name = name;
+        return *this;
+    }
+
+    FunctionBuilder& Name(C8DynString&& name) noexcept
+    {
+        m_Name = ::std::move(name);
+        return *this;
+    }
+
+    FunctionBuilder& Name(const c8* const name) noexcept
+    {
+        m_Name = C8DynString(name);
+        return *this;
+    }
+
+    template<uSys Len>
+    FunctionBuilder& Name(const c8(&name)[Len]) noexcept
+    {
+        m_Name = C8DynString::FromStatic(name);
+        return *this;
+    }
+
+    FunctionBuilder& Name(const char* const name) noexcept
+    {
+        m_Name = C8DynString(reinterpret_cast<const c8*>(name));
+        return *this;
+    }
+
+    FunctionBuilder& Name() noexcept
+    {
+        m_Name = C8DynString();
+        return *this;
+    }
+
+    FunctionBuilder& Attachment(const Ref<FunctionAttachment>& attachment) noexcept
+    {
+        m_Attachment = attachment;
+        return *this;
+    }
+
+    FunctionBuilder& Attachment(Ref<FunctionAttachment>&& attachment) noexcept
+    {
+        m_Attachment = ::std::move(attachment);
+        return *this;
+    }
+
+    FunctionBuilder& Attachment() noexcept
+    {
+        m_Attachment = nullptr;
+        return *this;
+    }
+
+    Function* Build() noexcept
+    {
+        Function* ret = new Function(
+            m_Address,
+            m_CodeSize,
+            m_LocalSize,
+            ::std::move(*m_LocalTypes),
+            ::std::move(*m_LocalOffsets),
+            ::std::move(*m_Arguments),
+            m_Flags,
+            m_Name,
+            ::std::move(m_Attachment)
+        );
+
+        m_LocalTypes->~DynArray();
+        m_LocalOffsets->~DynArray();
+        m_Arguments->~DynArray();
+
+        return ret;
+    }
+private:
+    void LoadLocalOffsets() noexcept;
+
+    DynArray<const TypeInfo*>& GetLocalTypes() noexcept { return *m_LocalTypes; }
+    DynArray<uSys>& GetLocalOffsets() noexcept { return *m_LocalOffsets; }
+private:
+    const u8* m_Address;
+    uSys m_CodeSize;
+    uSys m_LocalSize;
+
+    u8 m_LocalTypesRaw[sizeof(DynArray<const TypeInfo*>)];
+    u8 m_LocalOffsetsRaw[sizeof(DynArray<uSys>)];
+    u8 m_ArgumentsRaw[sizeof(DynArray<FunctionArgument>)];
+
+    DynArray<const TypeInfo*>* m_LocalTypes;
+    DynArray<uSys>* m_LocalOffsets;
+    DynArray<FunctionArgument>* m_Arguments;
+
+    FunctionFlags m_Flags;
+    C8DynString m_Name;
+    Ref<FunctionAttachment> m_Attachment;
 };
 
 inline void* PrepareNativeFunctionPointer(const Function* const function) noexcept

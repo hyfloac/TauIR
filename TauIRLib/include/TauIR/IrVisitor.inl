@@ -268,8 +268,18 @@ void BaseIrVisitor<Derived>::Traverse(const u8* codePtr, const u8* const endPtr)
                 GetDerived().VisitCallExt(targetFunctionIndex, moduleIndex);
                 break;
             }
-            SIMPLE_TRAVERSE(CallInd);
-            SIMPLE_TRAVERSE(CallIndExt);
+            case Opcode::CallInd:
+            {
+                const u16 localIndex = ReadCodeValue<u16>(codePtr);
+                GetDerived().VisitCallInd(localIndex);
+                break;
+            }
+            case Opcode::CallIndExt:
+            {
+                const u16 localIndex = ReadCodeValue<u16>(codePtr);
+                GetDerived().VisitCallIndExt(localIndex);
+                break;
+            }
             SIMPLE_TRAVERSE(Ret);
             case Opcode::Jump:
             {

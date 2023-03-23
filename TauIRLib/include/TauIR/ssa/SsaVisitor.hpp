@@ -3,6 +3,9 @@
 #include <Objects.hpp>
 #include "SsaTypes.hpp"
 #include "SsaOpcodes.hpp"
+#include "TauIR/Opcodes.hpp"
+#include "TauIR/Function.hpp"
+#include "TauIR/ssa/SsaFunctionAttachment.hpp"
 #include <cstring>
 #include <DynArray.hpp>
 
@@ -47,9 +50,24 @@ protected:
     { }
 public:
     bool Traverse(const u8* codePtr, uSys size, VarId maxId) noexcept;
+
+    bool Traverse(const Function* const function) noexcept
+    {
+        const SsaFunctionAttachment* ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+        if(!ssaAttachment)
+        {
+            return false;
+        }
+
+        return Traverse(ssaAttachment->Writer().Buffer(), ssaAttachment->Writer().Size(), ssaAttachment->Writer().IdIndex());
+    }
 protected:
     // ReSharper disable once CppHiddenFunction
     bool PreTraversal(const u8* const codePtr, const uSys size, const VarId maxId) noexcept { return true; }
+
+    // ReSharper disable once CppHiddenFunction
+    bool PostTraversal() noexcept { return true; }
 
     // ReSharper disable once CppHiddenFunction
     bool VisitNop() noexcept { return true; }
@@ -86,7 +104,13 @@ protected:
     // ReSharper disable once CppHiddenFunction
     bool VisitSplit(const VarId baseIndex, const SsaCustomType aType, const VarId a, const uSys splitCount, const SsaCustomType* const splitTypes) noexcept { return true; }                                           
     // ReSharper disable once CppHiddenFunction
-    bool VisitJoin(const VarId newVar, const SsaCustomType newType, const uSys joinCount, const SsaCustomType* const joinTypes, const VarId* const joinVars) noexcept { return true; }   
+    bool VisitJoin(const VarId newVar, const SsaCustomType newType, const uSys joinCount, const SsaCustomType* const joinTypes, const VarId* const joinVars) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCompVToV(const VarId newVar, const CompareCondition operation, const SsaCustomType type, const VarId a, const VarId b) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCompVToI(const VarId newVar, const CompareCondition operation, const SsaCustomType type, const void* const a, const uSys aSize, const VarId b) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitCompIToV(const VarId newVar, const CompareCondition operation, const SsaCustomType type, const VarId a, const void* const b, const uSys bSize) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction 
     bool VisitCall(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction
@@ -97,7 +121,6 @@ protected:
     bool VisitCallIndExt(const VarId newVar, const VarId functionPointer, const VarId baseIndex, const u32 parameterCount, const VarId modulePointer) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction
     bool VisitRet(const SsaCustomType returnType, const VarId var) noexcept { return true; }
-
 
     [[nodiscard]] const SsaCustomTypeRegistry& Registry() const noexcept { return *m_Registry; }
 private:
@@ -437,6 +460,64 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
                 idIndex += joinCount;
                 break;
             }
+            case SsaOpcode::CompVtoV:
+            {
+                const CompareCondition cond = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+                const VarId a = ReadType<VarId>(codePtr, i);
+                const VarId b = ReadType<VarId>(codePtr, i);
+
+                if(!GetDerived().VisitCompVToV(idIndex++, cond, type, a, b))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::CompVtoI:
+            {
+                const CompareCondition cond = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+                const void* const aValue = codePtr + i;
+
+                u32 typeSize = static_cast<u32>(TypeValueSize(type.Type));
+
+                if(StripPointer(type.Type) == SsaType::Bytes || StripPointer(type.Type) == SsaType::Custom)
+                {
+                    typeSize = Registry()[type.CustomType].Size;
+                }
+
+                i += typeSize;
+
+                const VarId b = ReadType<VarId>(codePtr, i);
+
+                if(!GetDerived().VisitCompVToI(idIndex++, cond, type, aValue, typeSize, b))
+                {
+                    return false;
+                }
+                break;
+            }
+            case SsaOpcode::CompItoV:
+            {
+                const CompareCondition cond = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+                const VarId a = ReadType<VarId>(codePtr, i);
+                const void* const bValue = codePtr + i;
+
+                u32 typeSize = static_cast<u32>(TypeValueSize(type.Type));
+
+                if(StripPointer(type.Type) == SsaType::Bytes || StripPointer(type.Type) == SsaType::Custom)
+                {
+                    typeSize = Registry()[type.CustomType].Size;
+                }
+
+                i += typeSize;
+
+                if(!GetDerived().VisitCompIToV(idIndex++, cond, type, a, bValue, typeSize))
+                {
+                    return false;
+                }
+                break;
+            }
             case SsaOpcode::Branch:
             case SsaOpcode::BranchCond:
             {
@@ -507,7 +588,7 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
         }
     }
 
-    return true;
+    return PostTraversal();
 }
 
 }

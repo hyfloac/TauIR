@@ -10,6 +10,7 @@ namespace tau::ir {
 class Function;
 class TypeInfo;
 class Module;
+using ModuleList = ::std::vector<ModuleRef>;
 
 class IrToSsa
 {
@@ -19,7 +20,7 @@ public:
     using SsaFrameTracker = ssa::SsaFrameTracker;
     using VarId = ssa::VarId;
 public:
-    static SsaWriter TransformFunction(const Function* function, const ::std::vector<Ref<Module>>& modules, u16 currentModule) noexcept;
+    static void TransformFunction(Function* function, const ModuleList& modules, u16 currentModule) noexcept;
 public:
     static VarId PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, uSys size, ssa::SsaType ssaType);
     static VarId PopLocal(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId localIndex);

@@ -1,8 +1,10 @@
 // ReSharper disable CppHidingFunction
 #include "TauIR/ByteCodeDumper.hpp"
 #include "TauIR/Function.hpp"
+#include "TauIR/Opcodes.hpp"
 #include "TauIR/ssa/SsaOpcodes.hpp"
 #include "TauIR/ssa/SsaTypes.hpp"
+#include "TauIR/ssa/SsaFunctionAttachment.hpp"
 #include <ConPrinter.hpp>
 
 #include "TauIR/Common.hpp"
@@ -51,7 +53,7 @@ class DumpVisitor final : public BaseIrVisitor<DumpVisitor>
     DEFAULT_DESTRUCT(DumpVisitor);
     DEFAULT_CM_PU(DumpVisitor);
 public:
-    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
+    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
         : m_Labels(labels)
         , m_Modules(modules)
         , m_CurrCodePtr(nullptr)
@@ -72,14 +74,14 @@ public:
     //     , m_CurrentModule(currentModule)
     // { }
     
-    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
+    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
         : m_Labels(::std::move(labels))
         , m_Modules(::std::move(modules))
         , m_CurrCodePtr(nullptr)
         , m_CurrentModule(currentModule)
     { }
 
-    void Reset(const DynArray<const u8*>& labels, const ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
+    void Reset(const DynArray<const u8*>& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
     {
         m_Labels = labels;
         m_Modules = modules;
@@ -103,7 +105,7 @@ public:
     //     m_CurrentModule = currentModule;
     // }
     
-    void Reset(DynArray<const u8*>&& labels, ::std::vector<Ref<Module>>* modules, const u16 currentModule) noexcept
+    void Reset(DynArray<const u8*>&& labels, ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
     {
         m_Labels = ::std::move(labels);
         m_Modules = ::std::move(modules);
@@ -298,8 +300,16 @@ public:
         ConPrinter::PrintLn();
     }
 
-    VISIT_PRINT_1(Call, Ind);
-    VISIT_PRINT_2(Call, Ind, Ext);
+    void VisitCallInd(const u16 localIndex) noexcept
+    {
+        ConPrinter::PrintLn("    Call.Ind {}", localIndex);
+    }
+
+    void VisitCallIndExt(const u16 localIndex) noexcept
+    {
+        ConPrinter::PrintLn("    Call.Ind.Ext {}", localIndex);
+    }
+
     VISIT_PRINT_0(Ret);
 
     void VisitJump(const i32 offset) noexcept
@@ -349,7 +359,7 @@ private:
     {
         if(moduleIndex < Modules().size())
         {
-            const DynArray<const Function*>& functions = Modules()[moduleIndex]->Functions();
+            const DynArray<Function*>& functions = Modules()[moduleIndex]->Functions();
 
             if(functionIndex < functions.Size())
             {
@@ -364,10 +374,10 @@ private:
         ConPrinter::Print("<Func{}>", functionIndex);
     }
 
-    [[nodiscard]] const ::std::vector<Ref<Module>>& Modules() const noexcept { return *m_Modules; }
+    [[nodiscard]] const ::std::vector<StrongRef<Module>>& Modules() const noexcept { return *m_Modules; }
 private:
     DynArray<const u8*> m_Labels;
-    const ::std::vector<Ref<Module>>* m_Modules;
+    const ::std::vector<StrongRef<Module>>* m_Modules;
     const u8* m_CurrCodePtr;
     u16 m_CurrentModule;
 };
@@ -382,7 +392,7 @@ private:
 
 static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept;
 
-void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ::std::vector<Ref<Module>>& modules, const u16 moduleIndex) noexcept
+void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ModuleList& modules, const u16 moduleIndex) noexcept
 {
     if(function->Name().Length() != 0)
     {
@@ -662,10 +672,44 @@ static void PrintBinaryOp(const SsaBinaryOperation op) noexcept
         case SsaBinaryOperation::BarrelShiftRight:
             ConPrinter::Print(">>>");
             break;
-        case SsaBinaryOperation::Comp:
+	}
+}
+
+static void PrintCompareCondition(const CompareCondition condition) noexcept
+{
+    switch(condition)
+    {
+        case CompareCondition::Above:
+            ConPrinter::Print("&>");
+            break;
+        case CompareCondition::AboveOrEqual:
+            ConPrinter::Print("&>=");
+            break;
+        case CompareCondition::Below:
+            ConPrinter::Print("&<");
+            break;
+        case CompareCondition::BelowOrEqual:
+            ConPrinter::Print("&<=");
+            break;
+        case CompareCondition::Equal:
             ConPrinter::Print("==");
             break;
-	}
+        case CompareCondition::Greater:
+            ConPrinter::Print('>');
+            break;
+        case CompareCondition::GreaterOrEqual:
+            ConPrinter::Print(">=");
+            break;
+        case CompareCondition::Less:
+            ConPrinter::Print('<');
+            break;
+        case CompareCondition::LessOrEqual:
+            ConPrinter::Print("<=");
+            break;
+        case CompareCondition::NotEqual:
+            ConPrinter::Print("!=");
+            break;
+    }
 }
 
 void PrintVar(const VarId var)
@@ -705,7 +749,7 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
                 ConPrinter::PrintLn("    Nop");
                 break;
             case SsaOpcode::Label:
-                ConPrinter::PrintLn("  .{}", idIndex++);
+                ConPrinter::PrintLn("  .{}:", idIndex++);
                 break;
             case SsaOpcode::AssignImmediate:
             {
@@ -938,6 +982,57 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
 
                 break;
             }
+            case SsaOpcode::CompVtoV:
+            {
+                const CompareCondition condition = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+
+                ConPrinter::Print("  ");
+                PrintType(type);
+                ConPrinter::Print(" %{} = ", idIndex++);
+                PrintVar(ReadType<VarId>(codePtr, i));
+                ConPrinter::Print(' ');
+                PrintCompareCondition(condition);
+                ConPrinter::Print(' ');
+                PrintVar(ReadType<VarId>(codePtr, i));
+                ConPrinter::PrintLn();
+
+                break;
+            }
+            case SsaOpcode::CompVtoI:
+            {
+                const CompareCondition condition = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+
+                ConPrinter::Print("  ");
+                PrintType(type);
+                ConPrinter::Print(" %{} = ", idIndex++);
+                PrintValue(type, codePtr, i, registry);
+                ConPrinter::Print(' ');
+                PrintCompareCondition(condition);
+                ConPrinter::Print(' ');
+                PrintVar(ReadType<VarId>(codePtr, i));
+                ConPrinter::PrintLn();
+
+                break;
+            }
+            case SsaOpcode::CompItoV:
+            {
+                const CompareCondition condition = ReadType<CompareCondition>(codePtr, i);
+                const SsaCustomType type = ReadType<SsaCustomType>(codePtr, i);
+
+                ConPrinter::Print("  ");
+                PrintType(type);
+                ConPrinter::Print(" %{} = ", idIndex++);
+                PrintVar(ReadType<VarId>(codePtr, i));
+                ConPrinter::Print(' ');
+                PrintCompareCondition(condition);
+                ConPrinter::Print(' ');
+                PrintValue(type, codePtr, i, registry);
+                ConPrinter::PrintLn();
+
+                break;
+            }
             case SsaOpcode::Branch:
             {
                 ConPrinter::PrintLn("  Branch .{}", ReadType<VarId>(codePtr, i));
@@ -1008,4 +1103,15 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
     }
 }
 
+void DumpSsa(const Function* const function, const uSys functionIndex, const SsaCustomTypeRegistry& registry) noexcept
+{
+    const SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+    if(!ssaAttachment)
+    {
+        return;
+    }
+
+    DumpSsa(ssaAttachment->Writer().Buffer(), ssaAttachment->Writer().Size(), functionIndex, registry);
+}
 } }
