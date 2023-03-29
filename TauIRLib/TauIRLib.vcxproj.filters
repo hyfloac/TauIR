@@ -53,6 +53,9 @@
     <ClInclude Include="include\TauIR\FunctionNameMangler.hpp" />
     <ClInclude Include="include\TauIR\ssa\SsaFunctionAttachment.hpp" />
     <ClInclude Include="include\TauIR\ssa\opto\DeadCodeElimination.hpp" />
+    <ClInclude Include="include\TauIR\IrWriter.hpp" />
+    <ClInclude Include="include\TauIR\SsaToIr.hpp" />
+    <ClInclude Include="include\TauIR\file\BinaryObject.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Emulator.cpp">
@@ -77,6 +80,8 @@
     <ClCompile Include="src\FunctionNameMangler.cpp" />
     <ClCompile Include="src\SsaFunctionAttachment.cpp" />
     <ClCompile Include="src\DeadCodeElimination.cpp" />
+    <ClCompile Include="src\IrWriter.cpp" />
+    <ClCompile Include="src\BinaryObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="include\TauIR\IrVisitor.inl" />

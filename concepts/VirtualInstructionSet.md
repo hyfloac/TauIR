@@ -70,8 +70,8 @@ There is an execution stack, containing 32/64 bit values used for some instructi
 | `Load.Global`         | `0x901A`        | Load from memory address stored in Local Value #`Address`, into Global Value #`N`. | N `<u32>`                | Address `<u16>` |                |
 | `Load.Global.Ext`     | `0x901B`        | Load from memory address stored in Local Value #`Address`, into Global Value #`N` within external module, specified by the handle stored in Local Value #`Module`. | N `<u32>`                | Address `<u16>` | Module `<u16>` |
 | `Store`               | `0x4A`          | Store into memory address stored in Local Value #`Address`, from Local Value #`N`. | Address `<u16>`          | N `<u16>`       |                |
-| `Store.Global`        | `0xA04A`        | Store into memory address stored in Local Value #`Address`, from Global Value #`N`. | Address  `<u16>`         | N `<u16>`       |                |
-| `Store.Global.Ext`    | `0xA04B`        | Store into memory address stored in Local Value #`Address`, from Global Value #`N` within external module, specified by the handle stored in Local Value #`Module`. | Address  `<u32>`         | N `<u16>`       | Module `<u16>` |
+| `Store.Global`        | `0xA04A`        | Store into memory address stored in Local Value #`Address`, from Global Value #`N`. | Address  `<u16>`         | N `<u32>`       |                |
+| `Store.Global.Ext`    | `0xA04B`        | Store into memory address stored in Local Value #`Address`, from Global Value #`N` within external module, specified by the handle stored in Local Value #`Module`. | Address  `<u16>`         | N `<u32>`       | Module `<u16>` |
 | `Const.0`             | `0x14`          | Push constant `0` as 4 byte.                                 |                          |                 |                |
 | `Const.1`             | `0x15`          | Push constant `1` as 4 bytes.                                |                          |                 |                |
 | `Const.2`             | `0x16`          | Push constant `2` as 4 bytes.                                |                          |                 |                |

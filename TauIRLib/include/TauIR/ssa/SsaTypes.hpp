@@ -89,16 +89,23 @@ struct SsaCustomType final
     DEFAULT_CONSTRUCT_PU(SsaCustomType);
     DEFAULT_DESTRUCT(SsaCustomType);
     DEFAULT_CM_PU(SsaCustomType);
-
-    SsaCustomType(SsaType type, u32 customType = -1) noexcept
+public:
+    SsaCustomType(const SsaType type, const u32 customType = -1) noexcept
         : Type(type)
         , CustomType(customType)
     { }
 
+    [[nodiscard]] bool HasCustomSize() const noexcept
+    {
+        return Type == SsaType::Custom || Type == SsaType::Bytes;
+    }
+
     [[nodiscard]] uSys Size() const noexcept
     {
-        return Type == SsaType::Custom || Type == SsaType::Bytes ? sizeof(Type) + sizeof(CustomType) : sizeof(Type);
+        return HasCustomSize() ? MaxSize : MinSize;
     }
+
+    [[nodiscard]] operator uSys() const noexcept { return Size(); }
 
     SsaType Type;
     u32 CustomType;

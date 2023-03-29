@@ -26,15 +26,13 @@ template<>
 inline SsaCustomType ReadType<SsaCustomType>(const u8* const codePtr, uSys& i) noexcept
 {
     const SsaType typeId = static_cast<SsaType>(codePtr[i++]);
-
-    u32 customType = -1;
-
+    
     if(StripPointer(typeId) == SsaType::Bytes || StripPointer(typeId) == SsaType::Custom)
     {
-        customType = ReadType<u32>(codePtr, i);
+        return SsaCustomType(typeId, ReadType<u32>(codePtr, i));
     }
 
-    return SsaCustomType(typeId, customType);
+    return SsaCustomType(typeId);
 }
 
 }
@@ -111,6 +109,10 @@ protected:
     bool VisitCompVToI(const VarId newVar, const CompareCondition operation, const SsaCustomType type, const void* const a, const uSys aSize, const VarId b) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction
     bool VisitCompIToV(const VarId newVar, const CompareCondition operation, const SsaCustomType type, const VarId a, const void* const b, const uSys bSize) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitBranch(const VarId label) noexcept { return true; }
+    // ReSharper disable once CppHiddenFunction
+    bool VisitBranchCond(const VarId labelTrue, const VarId labelFalse, const VarId conditionVar) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction 
     bool VisitCall(const VarId newVar, const u32 functionIndex, const VarId baseIndex, const u32 parameterCount) noexcept { return true; }
     // ReSharper disable once CppHiddenFunction
@@ -519,9 +521,24 @@ bool SsaVisitor<Derived>::Traverse(const u8* const codePtr, const uSys size, con
                 break;
             }
             case SsaOpcode::Branch:
+            {
+                const VarId label = ReadType<VarId>(codePtr, i);
+                if(!GetDerived().VisitBranch(label))
+                {
+                    return false;
+                }
+                break;
+            }
             case SsaOpcode::BranchCond:
             {
-                throw 1;
+                const VarId labelTrue = ReadType<VarId>(codePtr, i);
+                const VarId labelFalse = ReadType<VarId>(codePtr, i);
+                const VarId conditionVar = ReadType<VarId>(codePtr, i);
+
+                if(!GetDerived().VisitBranchCond(labelTrue, labelFalse, conditionVar))
+                {
+                    return false;
+                }
                 break;
             }
             case SsaOpcode::Call:

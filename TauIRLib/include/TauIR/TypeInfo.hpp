@@ -43,6 +43,12 @@ public:
         , m_Name(name)
     { }
 
+    TypeInfo(const uSys size, const char* const name) noexcept
+        : m_Size(size)
+        , m_Id(GenerateId())
+        , m_Name(reinterpret_cast<const char8_t*>(name))
+    { }
+
     TypeInfo(const uSys size) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
@@ -60,10 +66,10 @@ public:
     [[nodiscard]] static bool IsPointer(const TypeInfo* typeInfo) noexcept { return CheckPointerTag<1>(typeInfo); }
     
     [[nodiscard]] static       TypeInfo* StripPointer(      TypeInfo* typeInfo) noexcept { return UnTagPointer<7>(typeInfo); }
-    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo) noexcept { return UnTagPointer<7>(typeInfo); }
+    [[nodiscard]] static const TypeInfo* StripPointer(const TypeInfo* typeInfo) noexcept { return StripPointer(const_cast<TypeInfo*>(typeInfo)); }
     
     [[nodiscard]] static       TypeInfo* AddPointer(      TypeInfo* typeInfo) noexcept { return TagPointer<1>(typeInfo); }
-    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo) noexcept { return TagPointer<1>(typeInfo); }
+    [[nodiscard]] static const TypeInfo* AddPointer(const TypeInfo* typeInfo) noexcept { return AddPointer(const_cast<TypeInfo*>(typeInfo)); }
     
     [[nodiscard]] static       TypeInfo* SetPointer(      TypeInfo* typeInfo, bool isPointer) noexcept;
     [[nodiscard]] static const TypeInfo* SetPointer(const TypeInfo* typeInfo, bool isPointer) noexcept;
@@ -88,7 +94,7 @@ inline TypeInfo* TypeInfo::SetPointer(TypeInfo* typeInfo, const bool isPointer) 
 
 inline const TypeInfo* TypeInfo::SetPointer(const TypeInfo* typeInfo, const bool isPointer) noexcept
 {
-    return isPointer ? AddPointer(typeInfo) : StripPointer(typeInfo);
+    return SetPointer(const_cast<TypeInfo*>(typeInfo), isPointer);
 }
 
 template<bool IsPointer>
@@ -107,19 +113,10 @@ inline TypeInfo* TypeInfo::SetPointer(TypeInfo* typeInfo) noexcept
 template<bool IsPointer>
 inline const TypeInfo* TypeInfo::SetPointer(const TypeInfo* typeInfo) noexcept
 {
-    if constexpr(IsPointer)
-    {
-        return AddPointer(typeInfo);
-    }
-    else
-    {
-        return StripPointer(typeInfo);
-    }
+    return SetPointer<IsPointer>(const_cast<TypeInfo*>(typeInfo));
 }
 
 }
-
-
 
 inline bool operator ==(const tau::ir::TypeInfo& left, const tau::ir::TypeInfo& right) noexcept
 {

@@ -17,22 +17,22 @@ class Module final
     DELETE_COPY(Module);
     DEFAULT_MOVE_PU(Module);
 public:
-    Module(FunctionList&& functions, const bool isNative, const C8DynString& name) noexcept
+    Module(FunctionList&& functions, const bool isNative, C8DynString&& name) noexcept
         : m_Id(GenerateId())
         , m_Functions(::std::move(functions))
         , m_IsNative(isNative)
-        , m_Name(name)
+        , m_Name(::std::move(name))
     { }
 
     ~Module() noexcept;
-
-    void AttachModuleReference(const StrongRef<Module>& module) noexcept;
 
     [[nodiscard]] uSys Id() const noexcept { return m_Id; }
     [[nodiscard]] const FunctionList& Functions() const noexcept { return m_Functions; }
     [[nodiscard]] bool IsNative() const noexcept { return m_IsNative; }
     [[nodiscard]] const C8DynString& Name() const noexcept { return m_Name; }
     [[nodiscard]]       C8DynString& Name()       noexcept { return m_Name; }
+
+    void AttachModuleReference(const ModuleRef& module) noexcept;
 private:
     static uSys GenerateId() noexcept;
 private:
@@ -111,24 +111,26 @@ public:
         m_Name = C8DynString(reinterpret_cast<const c8*>(name));
         return *this;
     }
-
+    
     ModuleBuilder& Name() noexcept
     {
         m_Name = C8DynString();
         return *this;
     }
 
-    StrongRef<Module> Build() noexcept
+    ModuleRef Build() noexcept
     {
         if(!m_Functions)
         {
             return nullptr;
         }
 
-        StrongRef<Module> module(::std::move(*m_Functions), m_IsNative, m_Name);
+        ModuleRef module(::std::move(*m_Functions), m_IsNative, ::std::move(m_Name));
 
         m_Functions->~DynArray();
         m_Functions = nullptr;
+
+        m_Name.~C8DynString();
 
         module->AttachModuleReference(module);
 
@@ -143,7 +145,6 @@ private:
     C8DynString m_Name;
 };
 
-using ModuleRef = StrongRef<Module>;
 using ModuleList = ::std::vector<ModuleRef>;
 
 }

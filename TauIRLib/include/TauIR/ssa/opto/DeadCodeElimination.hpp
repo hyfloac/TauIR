@@ -221,12 +221,14 @@ public:
 
 	void UpdateAttachment(Function* const function) noexcept
 	{
-		SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+	    SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
 
-		if(ssaAttachment)
-		{
-			ssaAttachment->Writer() = ::std::move(m_Writer);
-		}
+	    if(ssaAttachment)
+	    {
+	        ssaAttachment->Writer() = ::std::move(m_Writer);
+	    }
+
+		function->RemoveAttachment<UsageAnalysisFunctionAttachment>();
 	}
 public:
 	bool PreTraversal(const u8* const codePtr, const uSys size, const VarId maxId) noexcept

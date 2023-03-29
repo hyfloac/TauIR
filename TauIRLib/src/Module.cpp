@@ -23,7 +23,7 @@ Module::~Module() noexcept
     }
 }
 
-void Module::AttachModuleReference(const StrongRef<Module>& module) noexcept
+void Module::AttachModuleReference(const ModuleRef& module) noexcept
 {
     for(Function* function : m_Functions)
     {

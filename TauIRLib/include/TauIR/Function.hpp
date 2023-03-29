@@ -21,6 +21,7 @@ static_assert(CHAR_BIT == 8, "A byte is not 8 bits in size.");
 namespace tau::ir {
 
 class Module;
+class TypeInfo;
 
 enum class InlineControl : u32
 {
@@ -180,7 +181,56 @@ private:
     FunctionAttachment* m_Next;
 };
 
-class TypeInfo;
+class OptoFunctionCodeAttachment final : public FunctionAttachment
+{
+    DEFAULT_DESTRUCT(OptoFunctionCodeAttachment);
+    DELETE_CM(OptoFunctionCodeAttachment);
+    RTT_IMPL(OptoFunctionCodeAttachment, FunctionAttachment);
+public:
+    OptoFunctionCodeAttachment(
+        const u8* const address,
+        const uSys codeSize,
+        const uSys localSize,
+        DynArray<const TypeInfo*>&& localTypes,
+        DynArray<uSys>&& localOffsets
+    ) noexcept
+        : m_Address(address)
+        , m_CodeSize(codeSize)
+        , m_LocalSize(localSize)
+        , m_LocalTypes(::std::move(localTypes))
+        , m_LocalOffsets(::std::move(localOffsets))
+    { }
+
+    [[nodiscard]] const u8* Address() const noexcept { return m_Address; }
+    [[nodiscard]] uSys CodeSize() const noexcept { return m_CodeSize; }
+    [[nodiscard]] uSys LocalSize() const noexcept { return m_LocalSize; }
+    [[nodiscard]] const DynArray<const TypeInfo*>& LocalTypes() const noexcept { return m_LocalTypes; }
+    [[nodiscard]] const DynArray<uSys>& LocalOffsets() const noexcept { return m_LocalOffsets; }
+private:
+    /**
+     * The address of the IR code.
+     */
+    const u8* m_Address;
+    /**
+     * The number of bytes of IR code.
+     */
+    uSys m_CodeSize;
+    /**
+     * The number of bytes that locals will take up.
+     */
+    uSys m_LocalSize;
+    /**
+     * The types of all locals.
+     */
+    DynArray<const TypeInfo*> m_LocalTypes;
+    /**
+     * The offsets of all locals.
+     *
+     *   This is one less than the number of locals as we can ignore the
+     * first offset as it is always zero.
+     */
+    DynArray<uSys> m_LocalOffsets;
+};
 
 class Function final
 {
@@ -194,12 +244,15 @@ public:
     [[nodiscard]] const DynArray<uSys>&          LocalOffsets() const noexcept { return m_LocalOffsets; }
     [[nodiscard]] const DynArray<FunctionArgument>& Arguments() const noexcept { return m_Arguments; }
     [[nodiscard]] FunctionFlags Flags() const noexcept { return m_Flags; }
+
     [[nodiscard]] const C8DynString& Name() const noexcept { return m_Name; }
     [[nodiscard]]       C8DynString& Name()       noexcept { return m_Name; }
+
     [[nodiscard]] const WeakRef<tau::ir::Module>& Module() const noexcept { return m_Module; }
     [[nodiscard]]       WeakRef<tau::ir::Module>& Module()       noexcept { return m_Module; }
-    [[nodiscard]] const Ref<FunctionAttachment>& Attachment() const noexcept { return m_Attachment; }
-    [[nodiscard]]       Ref<FunctionAttachment>& Attachment()       noexcept { return m_Attachment; }
+
+    [[nodiscard]] const FunctionAttachment*  Attachment() const noexcept { return m_Attachment; }
+    [[nodiscard]]       FunctionAttachment*& Attachment()       noexcept { return m_Attachment; }
 
     template<typename T>
     T* FindAttachment() noexcept
@@ -209,7 +262,7 @@ public:
             return nullptr;
         }
 
-        FunctionAttachment* curr = m_Attachment.Get();
+        FunctionAttachment* curr = m_Attachment;
 
         do
         {
@@ -234,12 +287,37 @@ public:
     {
         if(m_Attachment)
         {
-            m_Attachment->Attach(new T(TauAllocatorUtils::Forward<Args>(args)...));
+            m_Attachment->Attach(new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...));
         }
         else
         {
-            m_Attachment = Ref<T>(TauAllocatorUtils::Forward<Args>(args)...);
+            m_Attachment = new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...);
         }
+    }
+
+    template<typename T>
+    void RemoveAttachment() noexcept
+    {
+        if(!m_Attachment)
+        {
+            return;
+        }
+
+        FunctionAttachment** prev = &m_Attachment;
+        FunctionAttachment* curr = m_Attachment;
+
+        do
+        {
+            if(rtt_check<T>(curr))
+            {
+                *prev = curr->Next();
+                delete curr;
+                return;
+            }
+
+            prev = &(curr->Next());
+            curr = curr->Next();
+        } while(curr);
     }
 public:
     /**
@@ -260,8 +338,8 @@ private:
         DynArray<uSys>&& localOffsets, 
         DynArray<FunctionArgument>&& arguments,
         const FunctionFlags flags,
-        const C8DynString& name,
-        Ref<FunctionAttachment>&& attachment
+        C8DynString&& name,
+        FunctionAttachment* attachment
     ) noexcept
         : m_Address(address)
         , m_CodeSize(codeSize)
@@ -270,7 +348,7 @@ private:
         , m_LocalOffsets(::std::move(localOffsets))
         , m_Arguments(::std::move(arguments))
         , m_Flags(flags)
-        , m_Name(name)
+        , m_Name(::std::move(name))
         , m_Attachment(attachment)
     { }
 private:
@@ -301,7 +379,7 @@ private:
     FunctionFlags m_Flags;
     C8DynString m_Name;
     WeakRef<tau::ir::Module> m_Module;
-    Ref<FunctionAttachment> m_Attachment;
+    FunctionAttachment* m_Attachment;
 
     friend class FunctionBuilder;
 };
@@ -534,15 +612,16 @@ public:
         return *this;
     }
 
-    FunctionBuilder& Attachment(const Ref<FunctionAttachment>& attachment) noexcept
+    FunctionBuilder& Attachment(FunctionAttachment* attachment) noexcept
     {
         m_Attachment = attachment;
         return *this;
     }
 
-    FunctionBuilder& Attachment(Ref<FunctionAttachment>&& attachment) noexcept
+    template<typename T, typename... Args>
+    FunctionBuilder& Attachment(Args&&... args) noexcept
     {
-        m_Attachment = ::std::move(attachment);
+        m_Attachment = new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...);
         return *this;
     }
 
@@ -562,13 +641,15 @@ public:
             ::std::move(*m_LocalOffsets),
             ::std::move(*m_Arguments),
             m_Flags,
-            m_Name,
-            ::std::move(m_Attachment)
+            ::std::move(m_Name),
+            m_Attachment
         );
 
         m_LocalTypes->~DynArray();
         m_LocalOffsets->~DynArray();
         m_Arguments->~DynArray();
+        m_Name.~C8DynString();
+        m_Attachment = nullptr;
 
         return ret;
     }
@@ -592,7 +673,7 @@ private:
 
     FunctionFlags m_Flags;
     C8DynString m_Name;
-    Ref<FunctionAttachment> m_Attachment;
+    FunctionAttachment* m_Attachment;
 };
 
 inline void* PrepareNativeFunctionPointer(const Function* const function) noexcept
