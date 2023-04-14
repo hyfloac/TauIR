@@ -53,62 +53,32 @@ class DumpVisitor final : public BaseIrVisitor<DumpVisitor>
     DEFAULT_DESTRUCT(DumpVisitor);
     DEFAULT_CM_PU(DumpVisitor);
 public:
-    DumpVisitor(const DynArray<const u8*>& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
+    DumpVisitor(const DynArray<const u8*>& labels, const ModuleRef& module, const u16 currentModule) noexcept
         : m_Labels(labels)
-        , m_Modules(modules)
+        , m_Module(module)
         , m_CurrCodePtr(nullptr)
         , m_CurrentModule(currentModule)
     { }
-
-    // DumpVisitor(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules, const u16 currentModule) noexcept
-    //     : m_Labels(labels)
-    //     , m_Modules(::std::move(modules))
-    //     , m_CurrCodePtr(nullptr)
-    //     , m_CurrentModule(currentModule)
-    // { }
-    //
-    // DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
-    //     : m_Labels(::std::move(labels))
-    //     , m_Modules(modules)
-    //     , m_CurrCodePtr(nullptr)
-    //     , m_CurrentModule(currentModule)
-    // { }
     
-    DumpVisitor(DynArray<const u8*>&& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
+    DumpVisitor(DynArray<const u8*>&& labels, const ModuleRef& module, const u16 currentModule) noexcept
         : m_Labels(::std::move(labels))
-        , m_Modules(::std::move(modules))
+        , m_Module(module)
         , m_CurrCodePtr(nullptr)
         , m_CurrentModule(currentModule)
     { }
 
-    void Reset(const DynArray<const u8*>& labels, const ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
+    void Reset(const DynArray<const u8*>& labels, const ModuleRef& module, const u16 currentModule) noexcept
     {
         m_Labels = labels;
-        m_Modules = modules;
+        m_Module = module;
         m_CurrCodePtr = nullptr;
         m_CurrentModule = currentModule;
     }
-    
-    // void Reset(const DynArray<const u8*>& labels, ::std::vector<Ref<Module>>&& modules, const u16 currentModule) noexcept
-    // {
-    //     m_Labels = labels;
-    //     m_Modules = ::std::move(modules);
-    //     m_CurrCodePtr = nullptr;
-    //     m_CurrentModule = currentModule;
-    // }
-    //
-    // void Reset(DynArray<const u8*>&& labels, const ::std::vector<Ref<Module>>& modules, const u16 currentModule) noexcept
-    // {
-    //     m_Labels = ::std::move(labels);
-    //     // m_Modules = modules;
-    //     m_CurrCodePtr = nullptr;
-    //     m_CurrentModule = currentModule;
-    // }
-    
-    void Reset(DynArray<const u8*>&& labels, ::std::vector<StrongRef<Module>>* modules, const u16 currentModule) noexcept
+
+    void Reset(DynArray<const u8*>&& labels, const ModuleRef& module, const u16 currentModule) noexcept
     {
         m_Labels = ::std::move(labels);
-        m_Modules = ::std::move(modules);
+        m_Module = module;
         m_CurrCodePtr = nullptr;
         m_CurrentModule = currentModule;
     }
@@ -345,21 +315,21 @@ private:
 
     void PrintModule(const u16 moduleIndex) noexcept
     {
-        if(moduleIndex >= Modules().size() || Modules()[moduleIndex]->Name().Length() == 0)
+        if(moduleIndex >= m_Module->Imports().size() || m_Module->Imports()[moduleIndex].Module()->Name().Length() == 0)
         {
             ConPrinter::Print(moduleIndex);
         }
         else
         {
-            ConPrinter::Print(Modules()[moduleIndex]->Name());
+            ConPrinter::Print(m_Module->Imports()[moduleIndex].Module()->Name());
         }
     }
 
     void PrintFunction(const u32 functionIndex, const u16 moduleIndex) noexcept
     {
-        if(moduleIndex < Modules().size())
+        if(moduleIndex < m_Module->Imports().size())
         {
-            const DynArray<Function*>& functions = Modules()[moduleIndex]->Functions();
+            const DynArray<Function*>& functions = m_Module->Imports()[moduleIndex].Module()->Functions();
 
             if(functionIndex < functions.Size())
             {
@@ -373,11 +343,9 @@ private:
 
         ConPrinter::Print("<Func{}>", functionIndex);
     }
-
-    [[nodiscard]] const ::std::vector<StrongRef<Module>>& Modules() const noexcept { return *m_Modules; }
 private:
     DynArray<const u8*> m_Labels;
-    const ::std::vector<StrongRef<Module>>* m_Modules;
+    ModuleRef m_Module;
     const u8* m_CurrCodePtr;
     u16 m_CurrentModule;
 };
@@ -392,7 +360,7 @@ private:
 
 static DynArray<const u8*> PreProcessFunction(const Function* function) noexcept;
 
-void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ModuleList& modules, const u16 moduleIndex) noexcept
+void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, const ModuleRef& module, const u16 moduleIndex) noexcept
 {
     if(function->Name().Length() != 0)
     {
@@ -405,7 +373,7 @@ void DumpFunction(const tau::ir::Function* function, const uSys functionIndex, c
 
     const DynArray<const u8*> labels = PreProcessFunction(function);
 
-    DumpVisitor dumpVisitor(labels, &modules, moduleIndex);
+    DumpVisitor dumpVisitor(labels, module, moduleIndex);
     dumpVisitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 }
 

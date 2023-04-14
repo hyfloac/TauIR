@@ -6,6 +6,60 @@
 
 namespace tau::ir {
 
+union TypeInfoFlags final
+{
+    DEFAULT_DESTRUCT(TypeInfoFlags);
+    DEFAULT_CM_PU(TypeInfoFlags);
+
+    u32 Packed;
+    struct
+    {
+        u32 IsValueType : 1;
+        u32 IsObject : 1;
+        u32 IsFunction : 1;
+        u32 IsIntegral : 1;
+        u32 IsBinaryFloatingPoint : 1;
+        u32 IsDecimalFloatingPoint : 1;
+        u32 IsCharacter : 1;
+        u32 IsSigned : 1;
+        u32 Unused : 24;
+    };
+
+    constexpr TypeInfoFlags() noexcept
+        : Packed(0)
+    { }
+
+    constexpr TypeInfoFlags(
+        const bool isValueType,
+        const bool isObject,
+        const bool isFunction,
+        const bool isIntegral,
+        const bool isBinaryFloatingPoint,
+        const bool isDecimalFloatingPoint,
+        const bool isCharacter,
+        const bool isSigned
+    ) noexcept
+        : IsValueType(isValueType)
+        , IsObject(isObject)
+        , IsFunction(isFunction)
+        , IsIntegral(isIntegral)
+        , IsBinaryFloatingPoint(isBinaryFloatingPoint)
+        , IsDecimalFloatingPoint(isDecimalFloatingPoint)
+        , IsCharacter(isCharacter)
+        , IsSigned(isSigned)
+        , Unused(0)
+    { }
+
+    [[nodiscard]] static constexpr TypeInfoFlags            Void() noexcept { return TypeInfoFlags(false, false, false, false, false, false, false, false); }
+    [[nodiscard]] static constexpr TypeInfoFlags          Object() noexcept { return TypeInfoFlags(false,  true, false, false, false, false, false, false); }
+    [[nodiscard]] static constexpr TypeInfoFlags        Function() noexcept { return TypeInfoFlags(false, false,  true, false, false, false, false, false); }
+    [[nodiscard]] static constexpr TypeInfoFlags   SignedInteger() noexcept { return TypeInfoFlags( true, false, false,  true, false, false, false,  true); }
+    [[nodiscard]] static constexpr TypeInfoFlags UnsignedInteger() noexcept { return TypeInfoFlags( true, false, false,  true, false, false, false, false); }
+    [[nodiscard]] static constexpr TypeInfoFlags           Float() noexcept { return TypeInfoFlags( true, false, false, false,  true, false, false,  true); }
+    [[nodiscard]] static constexpr TypeInfoFlags         Decimal() noexcept { return TypeInfoFlags( true, false, false, false, false,  true, false,  true); }
+    [[nodiscard]] static constexpr TypeInfoFlags            Char() noexcept { return TypeInfoFlags( true, false, false,  true, false, false,  true, false); }
+};
+
 class TypeInfo final
 {
     DEFAULT_DESTRUCT(TypeInfo);
@@ -25,37 +79,44 @@ public:
     static const TypeInfo F64;
     static const TypeInfo Char;
 public:
-    TypeInfo(const uSys size, const C8DynString& name) noexcept
+    TypeInfo(const uSys size, const TypeInfoFlags flags, const C8DynString& name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
+        , m_Flags(flags)
         , m_Name(name)
     { }
     
-    TypeInfo(const uSys size, C8DynString&& name) noexcept
+    TypeInfo(const uSys size, const TypeInfoFlags flags, C8DynString&& name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
+        , m_Flags(flags)
         , m_Name(::std::move(name))
     { }
 
-    TypeInfo(const uSys size, const c8* const name) noexcept
+    TypeInfo(const uSys size, const TypeInfoFlags flags, const c8* const name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
+        , m_Flags(flags)
         , m_Name(name)
     { }
 
-    TypeInfo(const uSys size, const char* const name) noexcept
+    TypeInfo(const uSys size, const TypeInfoFlags flags, const char* const name) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
+        , m_Flags(flags)
         , m_Name(reinterpret_cast<const char8_t*>(name))
     { }
 
-    TypeInfo(const uSys size) noexcept
+    TypeInfo(const uSys size, const TypeInfoFlags flags) noexcept
         : m_Size(size)
         , m_Id(GenerateId())
+        , m_Flags(flags)
     { }
 
     [[nodiscard]] uSys Size() const noexcept { return m_Size; }
     [[nodiscard]] uSys   Id() const noexcept { return m_Id;   }
+
+    [[nodiscard]] TypeInfoFlags Flags() const noexcept { return m_Flags; }
 
     [[nodiscard]] const C8DynString& Name()     const noexcept { return m_Name; }
     [[nodiscard]] operator const C8DynString&() const noexcept { return m_Name; }
@@ -84,6 +145,7 @@ private:
 private:
     uSys m_Size;
     uSys m_Id;
+    TypeInfoFlags m_Flags;
     C8DynString m_Name;
 };
 

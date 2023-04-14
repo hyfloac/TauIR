@@ -9,32 +9,21 @@ namespace tau::ir {
 
 void Emulator::Execute() noexcept
 {
-    // There needs to be at least one module to run.
-    // There should probably be more for native libraries.
-    if(m_Modules.empty())
-    {
-        return;
-    }
-
-    // Get a reference to the first module.
-    // The entry-point is the first function in the first module.
-    const ModuleRef& mainModule = m_Modules[0];
-
     // If the first module is null we have some problems.
-    if(!mainModule)
+    if(!m_MainModule)
     {
         return;
     }
 
     // If there are 0 functions in the module we don't have to run.
-    if(mainModule->Functions().count() == 0)
+    if(m_MainModule->Functions().count() == 0)
     {
         return;
     }
 
-    const Function* const entryPoint = mainModule->Functions()[0];
+    const Function* const entryPoint = m_MainModule->Functions()[0];
 
-    Executor(entryPoint, mainModule.Get());
+    Executor(entryPoint, m_MainModule.Get());
 }
 
 template<typename T>
@@ -586,8 +575,8 @@ void Emulator::Executor(const Function* function, const Module* module) noexcept
             {
                 const u32 functionIndex = ReadCodeValue<u32>(codePtr);
                 const u16 moduleIndex = ReadCodeValue<u16>(codePtr);
-                
-                const Module* const targetModule = m_Modules[moduleIndex].Get();
+
+                const Module* const targetModule = module->Imports()[moduleIndex].Module().Get();
 
                 if(targetModule->IsNative())
                 {
@@ -628,7 +617,7 @@ void Emulator::Executor(const Function* function, const Module* module) noexcept
 
                 const u32 functionIndex = GetLocal<u32>(function, localsHead, localIndex);
 
-                const Module* const targetModule = m_Modules[moduleIndex].Get();
+                const Module* const targetModule = module->Imports()[moduleIndex].Module().Get();
 
                 if(targetModule->IsNative())
                 {

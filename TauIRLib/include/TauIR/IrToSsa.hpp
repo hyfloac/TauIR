@@ -20,7 +20,7 @@ public:
     using SsaFrameTracker = ssa::SsaFrameTracker;
     using VarId = ssa::VarId;
 public:
-    static void TransformFunction(Function* function, const ModuleList& modules, u16 currentModule) noexcept;
+    static void TransformFunction(Function* function, const ModuleRef& module, u16 currentModule) noexcept;
 public:
     static VarId PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, uSys size, ssa::SsaType ssaType);
     static VarId PopLocal(const Function* function, SsaWriter& writer, SsaFrameTracker& frameTracker, VarId localIndex);

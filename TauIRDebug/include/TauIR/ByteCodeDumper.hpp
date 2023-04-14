@@ -8,9 +8,8 @@
 namespace tau::ir {
 
 class Function;
-using ModuleList = ::std::vector<ModuleRef>;
 
-void DumpFunction(const tau::ir::Function* function, uSys functionIndex, const ModuleList& modules, u16 moduleIndex) noexcept;
+void DumpFunction(const tau::ir::Function* function, uSys functionIndex, const ModuleRef& module, u16 moduleIndex) noexcept;
 
 namespace ssa {
 

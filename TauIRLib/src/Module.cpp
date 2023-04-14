@@ -2,6 +2,10 @@
 #include "TauIR/Function.hpp"
 #include <ConPrinter.hpp>
 #include <atomic>
+#include <allocator/FixedBlockAllocator.hpp>
+#include <mutex>
+
+#include "TauIR/CompileControls.hpp"
 
 namespace tau::ir {
 
@@ -29,6 +33,33 @@ void Module::AttachModuleReference(const ModuleRef& module) noexcept
     {
         function->Module() = module;
     }
+}
+
+static FixedBlockAllocator<TAU_IR_ALLOCATION_TRACKING> g_allocator(sizeof(Module), PageCountVal{ 128 });
+static ::std::mutex g_allocatorMutex;
+
+void* Module::operator new(const ::std::size_t sz) noexcept
+{
+    if(sz != sizeof(Module))
+    {
+        return nullptr;
+    }
+
+    ::std::lock_guard lock(g_allocatorMutex);
+
+    return g_allocator.Allocate(sz);
+}
+
+void Module::operator delete(void* const ptr) noexcept
+{
+    if(!ptr)
+    {
+        return;
+    }
+
+    ::std::lock_guard lock(g_allocatorMutex);
+
+    g_allocator.deallocate(ptr);
 }
 
 

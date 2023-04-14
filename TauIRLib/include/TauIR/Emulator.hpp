@@ -2,14 +2,12 @@
 
 #include <DynArray.hpp>
 #include <ConPrinter.hpp>
-#include <vector>
 #include "Common.hpp"
 
 namespace tau::ir {
 
 class Function;
 class Module;
-using ModuleList = ::std::vector<ModuleRef>;
 
 class Emulator
 {
@@ -30,8 +28,8 @@ public:
         uSys Offset;
     };
 public:
-    explicit Emulator(const ModuleList& modules)
-        : m_Modules(modules)
+    explicit Emulator(const ModuleRef& mainModule)
+        : m_MainModule(mainModule)
         , m_ExecutionStack(ExecutionStackSize<uSys>)
         , m_LocalsStack(LocalsStackSize<uSys>)
         , m_Arguments(MaxArgumentRegisters)
@@ -43,8 +41,8 @@ public:
         (void) ::std::memset(m_Arguments.arr(), 0, m_Arguments.size() * sizeof(u64));
     }
 
-    explicit Emulator(ModuleList&& modules)
-        : m_Modules(::std::move(modules))
+    explicit Emulator(ModuleRef&& module)
+        : m_MainModule(::std::move(module))
         , m_ExecutionStack(ExecutionStackSize<uSys>)
         , m_LocalsStack(LocalsStackSize<uSys>)
         , m_Arguments(MaxArgumentRegisters)
@@ -54,16 +52,6 @@ public:
         (void) ::std::memset(m_ExecutionStack.arr(), 0, m_ExecutionStack.size());
         (void) ::std::memset(m_LocalsStack.arr(), 0, m_LocalsStack.size());
         (void) ::std::memset(m_Arguments.arr(), 0, m_Arguments.size() * sizeof(u64));
-    }
-
-    void LoadModule(const ModuleRef& module)
-    {
-        m_Modules.push_back(module);
-    }
-
-    void LoadModule(ModuleRef&& module)
-    {
-        m_Modules.push_back(::std::move(module));
     }
 
     void Execute() noexcept;
@@ -139,7 +127,7 @@ private:
     static SizeAndOffset GetLocalSizeAndOffset(const Function* function, u16 local) noexcept;
     static SizeAndOffset GetLocalUnderlyingSizeAndOffset(const Function* function, u16 local) noexcept;
 private:
-    ModuleList m_Modules;
+    ModuleRef m_MainModule;
     DynArray<u8> m_ExecutionStack;
     DynArray<u8> m_LocalsStack;
     DynArray<ArgumentRegisterType> m_Arguments;

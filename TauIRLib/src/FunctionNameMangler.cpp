@@ -8,19 +8,19 @@ C8DynString MangleFunctionName(const DynArray<FunctionArgument>& arguments) noex
 {
     C8StringBuilder builder(arguments.Length() * 2 + 1 + 2);
 
-    builder.append(u8"A0:");
+    builder.Append(u8"A0:");
     for(const FunctionArgument& argument : arguments)
     {
         if(argument.IsRegister)
         {
-            builder.append(u8'A');
+            builder.Append(u8'A');
         }
         else
         {
-            builder.append(u8'S');
+            builder.Append(u8'S');
         }
 
-        builder.append(ToString<c8>(argument.RegisterOrStackOffset));
+        builder.Append(ToString<c8>(argument.RegisterOrStackOffset));
     }
 
     return builder.toString();

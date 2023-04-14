@@ -5,6 +5,7 @@
 #include "TauIR/ByteCodeDumper.hpp"
 #include "TauIR/IrToSsa.hpp"
 #include "TauIR/FunctionNameMangler.hpp"
+#include "TauIR/file/BinaryObject.hpp"
 
 #include <ConPrinter.hpp>
 
@@ -19,6 +20,7 @@ static void TestCall() noexcept;
 static void TestCallInd() noexcept;
 static void TestPrint() noexcept;
 static void TestCond() noexcept;
+static void TestWriteFile() noexcept;
 
 int main(int argCount, char* args[])
 {
@@ -31,6 +33,7 @@ int main(int argCount, char* args[])
     TestCallInd();
     TestPrint();
     TestCond();
+    TestWriteFile();
 
     return 0;
 }
@@ -101,7 +104,7 @@ static void TestIrToSsa() noexcept
         .Code(codeMain)
         .LocalTypes()
         .Arguments()
-        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
         .Name(u8"Main")
         .Build();
     Function* const squareFunc = FunctionBuilder()
@@ -116,23 +119,22 @@ static void TestIrToSsa() noexcept
     functions[0] = mainFunc;
     functions[1] = squareFunc;
 
-    ModuleList modules;
-    {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-    }
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports()
+        .Emulated()
+        .Name(u8"Main")
+        .Build();
 
-    ::tau::ir::DumpFunction(mainFunc, 0, modules, 0);
+    ::tau::ir::DumpFunction(mainFunc, 0, mainModule, 0);
     ConPrinter::PrintLn();
-    ::tau::ir::DumpFunction(squareFunc, 1, modules, 0);
+    ::tau::ir::DumpFunction(squareFunc, 1, mainModule, 0);
     ConPrinter::PrintLn();
 
     const tau::ir::ssa::SsaCustomTypeRegistry registry;
-    tau::ir::IrToSsa::TransformFunction(mainFunc, modules, 0);
-    tau::ir::IrToSsa::TransformFunction(squareFunc, modules, 0);
+    tau::ir::IrToSsa::TransformFunction(mainFunc, mainModule, 0);
+    tau::ir::IrToSsa::TransformFunction(squareFunc, mainModule, 0);
 
     tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
     tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
@@ -227,13 +229,13 @@ static void TestIrToSsaCallInd() noexcept
     ConPrinter::PrintLn("Square Mangled Name: {}", squareMangledName);
 
     DynArray<const TypeInfo*> mainLocalTypes(1);
-    mainLocalTypes[0] = new TypeInfo(4, squareMangledName);
+    mainLocalTypes[0] = new TypeInfo(4, TypeInfoFlags::Function(), squareMangledName);
 
     Function* const mainFunc = FunctionBuilder()
         .Code(codeMain)
         .LocalTypes(mainLocalTypes)
         .Arguments()
-        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
         .Name(u8"Main")
         .Build();
     Function* const squareFunc = FunctionBuilder()
@@ -248,23 +250,22 @@ static void TestIrToSsaCallInd() noexcept
     functions[0] = mainFunc;
     functions[1] = squareFunc;
 
-    ModuleList modules;
-    {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-    }
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports()
+        .Emulated()
+        .Name(u8"Main")
+        .Build();
 
-    ::tau::ir::DumpFunction(mainFunc, 0, modules, 0);
+    ::tau::ir::DumpFunction(mainFunc, 0, mainModule, 0);
     ConPrinter::PrintLn();
-    ::tau::ir::DumpFunction(squareFunc, 1, modules, 0);
+    ::tau::ir::DumpFunction(squareFunc, 1, mainModule, 0);
     ConPrinter::PrintLn();
 
     const tau::ir::ssa::SsaCustomTypeRegistry registry;
-    tau::ir::IrToSsa::TransformFunction(mainFunc, modules, 0);
-    tau::ir::IrToSsa::TransformFunction(squareFunc, modules, 0);
+    tau::ir::IrToSsa::TransformFunction(mainFunc, mainModule, 0);
+    tau::ir::IrToSsa::TransformFunction(squareFunc, mainModule, 0);
 
     tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
     tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
@@ -358,7 +359,7 @@ static void TestCall() noexcept
             .Code(codeMain)
             .LocalTypes()
             .Arguments()
-            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
             .Name(u8"Main")
             .Build();
         functions[1] = FunctionBuilder()
@@ -370,21 +371,20 @@ static void TestCall() noexcept
             .Build();
     }
 
-    ModuleList modules;
-    {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-    }
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports()
+        .Emulated()
+        .Name(u8"Main")
+        .Build();
 
-    ::tau::ir::DumpFunction(modules[0]->Functions()[0], 0, modules, 0);
+    ::tau::ir::DumpFunction(mainModule->Functions()[0], 0, mainModule, 0);
     ConPrinter::PrintLn();
-    ::tau::ir::DumpFunction(modules[0]->Functions()[1], 1, modules, 0);
+    ::tau::ir::DumpFunction(mainModule->Functions()[1], 1, mainModule, 0);
     ConPrinter::PrintLn();
 
-    tau::ir::Emulator emulator(modules);
+    tau::ir::Emulator emulator(mainModule);
     emulator.Execute();
 
     const u64 retVal = emulator.ReturnVal();
@@ -435,13 +435,13 @@ static void TestCallInd() noexcept
         ConPrinter::PrintLn("Square Mangled Name: {}", squareMangledName);
         
         DynArray<const TypeInfo*> mainLocalTypes(1);
-        mainLocalTypes[0] = new TypeInfo(4, squareMangledName);
+        mainLocalTypes[0] = new TypeInfo(4, TypeInfoFlags::Function(), squareMangledName);
 
         functions[0] = FunctionBuilder()
             .Code(codeMain)
             .LocalTypes(mainLocalTypes)
             .Arguments()
-            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
             .Name(u8"Main")
             .Build();;
         functions[1] = FunctionBuilder()
@@ -453,21 +453,20 @@ static void TestCallInd() noexcept
             .Build();
     }
 
-    ModuleList modules;
-    {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-    }
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports()
+        .Emulated()
+        .Name(u8"Main")
+        .Build();
 
-    ::tau::ir::DumpFunction(modules[0]->Functions()[0], 0, modules, 0);
+    ::tau::ir::DumpFunction(mainModule->Functions()[0], 0, mainModule, 0);
     ConPrinter::PrintLn();
-    ::tau::ir::DumpFunction(modules[0]->Functions()[1], 1, modules, 0);
+    ::tau::ir::DumpFunction(mainModule->Functions()[1], 1, mainModule, 0);
     ConPrinter::PrintLn();
 
-    tau::ir::Emulator emulator(modules);
+    tau::ir::Emulator emulator(mainModule);
     emulator.Execute();
 
     const u64 retVal = emulator.ReturnVal();
@@ -489,8 +488,8 @@ static void TestPrint() noexcept
     using namespace tau::ir;
 
     constexpr u8 codeMain[] = {
-        0x80, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, // Call.Ext <0:NativePrintHelloWorld>
-        0x1D                                // Ret
+        0x80, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Call.Ext <0:NativePrintHelloWorld>
+        0x1D                                            // Ret
     };
     
     FunctionList nativeFunctions(1);
@@ -507,28 +506,35 @@ static void TestPrint() noexcept
         .Code(codeMain)
         .LocalTypes()
         .Arguments()
-        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+        .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
+        .Name(u8"Main")
+        .Build();
+    
+    ModuleRef nativeModule = ModuleBuilder()
+        .Functions(::std::move(nativeFunctions))
+        .Exports()
+        .Imports()
+        .Native()
+        .Name(u8"Native")
+        .Build();
+
+    ImportModuleList mainImports(1);
+    {
+        mainImports[0] = ImportModule(nativeModule, nativeModule->Functions());
+    }
+
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports(::std::move(mainImports))
+        .Emulated()
         .Name(u8"Main")
         .Build();
 
-    ModuleList modules;
-    {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(nativeFunctions))
-            .Native()
-            .Name(u8"Native")
-            .Build());
-    }
+    ::tau::ir::DumpFunction(mainModule->Functions()[0], 0, mainModule, 0);
+    ConPrinter::PrintLn();
 
-    ::tau::ir::DumpFunction(modules[0]->Functions()[0], 0, modules, 0);
-    ConPrinter::Print("\n");
-
-    tau::ir::Emulator emulator(modules);
+    tau::ir::Emulator emulator(mainModule);
     emulator.Execute();
 
     ConPrinter::PrintLn();
@@ -561,10 +567,10 @@ static void TestCond() noexcept
         0x41,                                           // Pop.Arg.1
         0x80, 0x75,                                     // Comp.i32.Greater
         0x70, 0x0D, 0x00, 0x00, 0x00,                   // Jump.True .isGreater
-        0x80, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, // Call.Ext <0:NativePrintSuccess>
+        0x80, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Call.Ext <0:NativePrintSuccess>
         0x1E, 0x08, 0x00, 0x00, 0x00,                   // Jump .ret
                                                         // .isGreater:
-        0x80, 0x1C, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, //   Call.Ext <0:NativePrintFail>
+        0x80, 0x1C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, //   Call.Ext <0:NativePrintFail>
                                                         // .ret
         0x1D                                            //   Ret
     };
@@ -589,30 +595,183 @@ static void TestCond() noexcept
             .Code(codeMain)
             .LocalTypes()
             .Arguments()
-            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default)
+            .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
             .Name(u8"Main")
             .Build();;
     }
 
-    ModuleList modules;
+    ModuleRef nativeModule = ModuleBuilder()
+        .Functions(::std::move(nativeFunctions))
+        .Exports()
+        .Imports()
+        .Native()
+        .Name(u8"Native")
+        .Build();
+
+    ImportModuleList mainImports(1);
     {
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(functions))
-            .Emulated()
-            .Name(u8"Main")
-            .Build());
-        modules.push_back(ModuleBuilder()
-            .Functions(::std::move(nativeFunctions))
-            .Native()
-            .Name(u8"Native")
-            .Build());
+        mainImports[0] = ImportModule(nativeModule, nativeModule->Functions());
     }
 
-    ::tau::ir::DumpFunction(modules[0]->Functions()[0], 0, modules, 0);
-    ConPrinter::Print("\n");
+    ModuleRef mainModule = ModuleBuilder()
+        .Functions(::std::move(functions))
+        .Exports()
+        .Imports(::std::move(mainImports))
+        .Emulated()
+        .Name(u8"Main")
+        .Build();
 
-    tau::ir::Emulator emulator(modules);
+    ::tau::ir::DumpFunction(mainModule->Functions()[0], 0, mainModule, 0);
+    ConPrinter::PrintLn();
+
+    tau::ir::Emulator emulator(mainModule);
     emulator.Execute();
 
     ConPrinter::PrintLn();
+}
+
+static void TestWriteFile() noexcept
+{
+    ConPrinter::PrintLn();
+    ConPrinter::PrintLn();
+    ConPrinter::PrintLn("Test file generation:");
+
+    using namespace tau::ir;
+    using namespace tau::ir::file;
+    using namespace tau::ir::file::v0_0;
+
+    FILE* const file = fopen("test_exe.tire", "w+b");
+
+    constexpr u8 exeHeader[] = { 'M', 'S' };
+
+    (void) fwrite(exeHeader, sizeof(exeHeader), 1, file);
+
+    const i64 zeroPointer = WriteFileHeader(file);
+
+    const C8DynString strings[] = {
+        StringSectionName,
+        ModuleInfoSectionName,
+        TypesSectionName,
+        GlobalsSectionName,
+        FunctionsSectionName,
+        CodeSectionName,
+        u8"Test Module",
+        u8"A module for testing the TIRE writer functions.",
+        u8"hyfloac",
+        u8"https://github.com/hyfloac/TauIr",
+        u8"Square",
+        u8"Main"
+    };
+
+    u64 stringPointers[::std::size(strings)];
+
+    const i64 stringSectionPointer = WriteStringSection(file, zeroPointer, strings, ::std::size(strings), stringPointers);
+    
+    u64 sectionNames[5];
+    sectionNames[0] = stringPointers[1];
+    sectionNames[1] = stringPointers[2];
+    sectionNames[2] = stringPointers[3];
+    sectionNames[3] = stringPointers[4];
+    sectionNames[4] = stringPointers[5];
+    
+    u64 sectionPointers[5];
+    
+    (void) WriteSectionHeader(file, zeroPointer, stringSectionPointer, stringPointers[0], sectionNames, ::std::size(sectionNames), sectionPointers);
+    
+    {
+        ModuleInfoSection moduleInfo;
+        moduleInfo.ModuleVersion = MakeFileVersion(1, 0, 0);
+        moduleInfo.TauIRVersion = TauIRVersion0;
+        moduleInfo.NamePointer = stringPointers[6];
+        moduleInfo.DescriptionPointer = stringPointers[7];
+        moduleInfo.AuthorPointer = stringPointers[8];
+        moduleInfo.WebsitePointer = stringPointers[9];
+        (void) ::std::memset(moduleInfo.Reserved, 0, sizeof(moduleInfo.Reserved));
+    
+        (void) WriteModuleInfoSection(file, zeroPointer, sectionPointers[0], moduleInfo);
+    }
+
+    {
+        const u8 codeSquare[] = {
+            0x30,   // Push.Arg.0
+            0x30,   // Push.Arg.0
+            0x39,   // Mul.i64
+            0x40,   // Pop.Arg.0
+            0x1D    // Ret
+        };
+
+        // Expect 259
+        const u8 codeMain[] = {
+            0x8B, 0x00, 0x10, 0x00, 0x00, 0x00, // Const.N 16
+            0x29,                               // Expand.SX.4.8
+            0x40,                               // Pop.Arg.0
+            0x1C, 0x01, 0x00, 0x00, 0x00,       // Call <codeSquare>
+            0x17,                               // Const.3
+            0x30,                               // Push.Arg.0
+            0x2A,                               // Trunc.8.4
+            0x34,                               // Add.i32
+            0x29,                               // Expand.SX.4.8
+            0x40,                               // Pop.Arg.0
+            0x1D                                // Ret
+        };
+
+        FunctionList functions(2);
+        {
+            DynArray<::tau::ir::FunctionArgument> squareArgs(1);
+            squareArgs[0] = ::tau::ir::FunctionArgument(true, 0);
+
+            functions[0] = FunctionBuilder()
+                .Code(codeMain)
+                .LocalTypes()
+                .Arguments()
+                .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
+                .Name(u8"Main")
+                .Build();
+            functions[1] = FunctionBuilder()
+                .Code(codeSquare)
+                .LocalTypes()
+                .Arguments(squareArgs)
+                .Flags()
+                .Name(u8"Square")
+                .Build();
+        }
+
+        ModuleRef mainModule = ModuleBuilder()
+            .Functions(::std::move(functions))
+            .Exports()
+            .Imports()
+            .Emulated()
+            .Name(u8"Main")
+            .Build();
+
+        const u64 namePointers[] = { stringPointers[10], stringPointers[11] };
+        u64 codePointers[2];
+
+        WriteFunctionSection(file, zeroPointer, sectionPointers[3], mainModule.Get(), namePointers, codePointers);
+    }
+
+    WriteFinal(file, zeroPointer);
+
+    do
+    {
+        (void) fflush(file);
+        (void) _fseeki64(file, zeroPointer, SEEK_SET);
+        FileHeader* const fileHeader = ReadFileHeader(file);
+
+        if(!fileHeader)
+        {
+            ConPrinter::PrintLn(u8"Failed to read file header.");
+            break;
+        }
+
+        ConPrinter::PrintLn(fileHeader);
+        
+        SectionHeader* const sectionHeader = ReadSectionHeader(file, fileHeader);
+
+
+        FreeFile(sectionHeader);
+        FreeFile(fileHeader);
+    } while(false);
+
+    (void) fclose(file);
 }

@@ -132,13 +132,15 @@ union FunctionFlags final
         InlineControl InlineControl : 2;
         CallingConvention CallingConvention : 3;
         OptimizationControl OptimizationControl : 2;
-        u32 Unused : 25;
+        u32 HasVarArgs : 1;
+        u32 Unused : 24;
     };
 
-    FunctionFlags(const enum InlineControl inlineControl, const enum CallingConvention callingConvention, const enum OptimizationControl optimizationControl) noexcept
+    FunctionFlags(const enum InlineControl inlineControl, const enum CallingConvention callingConvention, const enum OptimizationControl optimizationControl, const bool hasVarArgs) noexcept
         : InlineControl(inlineControl)
         , CallingConvention(callingConvention)
         , OptimizationControl(optimizationControl)
+        , HasVarArgs(hasVarArgs)
     { }
 };
 
@@ -398,7 +400,7 @@ public:
         , m_LocalTypes(nullptr)
         , m_LocalOffsets(nullptr)
         , m_Arguments(nullptr)
-        , m_Flags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default)
+        , m_Flags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default, false)
         , m_Name()
         , m_Attachment(nullptr)
     { }
@@ -464,7 +466,17 @@ public:
     {
         m_Address = reinterpret_cast<const u8*>(func);
         m_CodeSize = 0;
-        m_Flags = FunctionFlags(InlineControl::NoInline, CallingConvention::Cdecl, OptimizationControl::NoOptimize);
+        m_Flags = FunctionFlags(InlineControl::NoInline, CallingConvention::Cdecl, OptimizationControl::NoOptimize, false);
+        LocalTypes();
+        return *this;
+    }
+
+    template<typename F>
+    FunctionBuilder& VaFunc(const F func) noexcept
+    {
+        m_Address = reinterpret_cast<const u8*>(func);
+        m_CodeSize = 0;
+        m_Flags = FunctionFlags(InlineControl::NoInline, CallingConvention::Cdecl, OptimizationControl::NoOptimize, true);
         LocalTypes();
         return *this;
     }
@@ -563,15 +575,15 @@ public:
         return *this;
     }
 
-    FunctionBuilder& Flags(const InlineControl inlineControl, const CallingConvention callingConvention, const OptimizationControl optimizationControl) noexcept
+    FunctionBuilder& Flags(const InlineControl inlineControl, const CallingConvention callingConvention, const OptimizationControl optimizationControl, const bool hasVarArgs) noexcept
     {
-        m_Flags = FunctionFlags(inlineControl, callingConvention, optimizationControl);
+        m_Flags = FunctionFlags(inlineControl, callingConvention, optimizationControl, hasVarArgs);
         return *this;
     }
 
     FunctionBuilder& Flags() noexcept
     {
-        m_Flags = FunctionFlags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default);
+        m_Flags = FunctionFlags(InlineControl::Default, CallingConvention::Default, OptimizationControl::Default, false);
         return *this;
     }
 

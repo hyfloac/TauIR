@@ -49,11 +49,11 @@ public:
     using SsaFrameTracker = ssa::SsaFrameTracker;
     using VarId = ssa::VarId;
 public:
-    IrToSsaVisitor(const Function* const function, const ModuleList& modules, const u16 currentModule) noexcept
+    IrToSsaVisitor(const Function* const function, const ModuleRef& module, const u16 currentModule) noexcept
         : m_Function(function)
         , m_Writer{}
         , m_FrameTracker(function->LocalTypes().count())
-        , m_Modules(modules)
+        , m_Module(module)
         , m_CurrentModule(currentModule)
     { }
 
@@ -258,7 +258,7 @@ public:
 
     u32 HandleCallSite(const u32 functionIndex, const u32 moduleIndex) noexcept
     {
-        const Function* targetFunction = m_Modules[moduleIndex]->Functions()[functionIndex];
+        const Function* targetFunction = m_Module->Functions()[functionIndex];
         return HandleFunctionArgs(targetFunction->Arguments());
     }
 
@@ -316,13 +316,13 @@ private:
     const Function* m_Function;
     SsaWriter m_Writer;
     SsaFrameTracker m_FrameTracker;
-    ModuleList m_Modules;
+    ModuleRef m_Module;
     u16 m_CurrentModule;
 };
 
-void IrToSsa::TransformFunction(Function* const function, const ModuleList& modules, const u16 currentModule) noexcept
+void IrToSsa::TransformFunction(Function* const function, const ModuleRef& module, const u16 currentModule) noexcept
 {
-    IrToSsaVisitor visitor(function, modules, currentModule);
+    IrToSsaVisitor visitor(function, module, currentModule);
     visitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 
     function->Attach<ssa::SsaFunctionAttachment>(::std::move(visitor.Writer()));
