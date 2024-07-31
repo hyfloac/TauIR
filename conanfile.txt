@@ -1,0 +1,15 @@
+[requires]
+tauutils/[^1.3.0]
+taucom/[^0.2.1]
+
+[generators]
+VirtualBuildEnv
+CMakeDeps
+CMakeToolchain
+
+[options]
+tauutils/*:shared=True
+taucom/*:shared=True
+
+[imports]
+bin, *.dll -> ./bin

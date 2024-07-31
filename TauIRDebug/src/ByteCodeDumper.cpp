@@ -1073,13 +1073,23 @@ void DumpSsa(const u8* codePtr, const uSys length, const uSys functionIndex, con
 
 void DumpSsa(const Function* const function, const uSys functionIndex, const SsaCustomTypeRegistry& registry) noexcept
 {
-    const SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
-
-    if(!ssaAttachment)
     {
-        return;
+        const SsaWriterFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaWriterFunctionAttachment>();
+
+        if(ssaAttachment)
+        {
+            DumpSsa(ssaAttachment->Writer().Buffer(), ssaAttachment->Writer().Size(), functionIndex, registry);
+            return;
+        }
     }
 
-    DumpSsa(ssaAttachment->Writer().Buffer(), ssaAttachment->Writer().Size(), functionIndex, registry);
+    {
+        const SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+        if(ssaAttachment)
+        {
+            DumpSsa(ssaAttachment->Buffer(), ssaAttachment->Buffer().Size(), functionIndex, registry);
+        }
+    }
 }
 } }

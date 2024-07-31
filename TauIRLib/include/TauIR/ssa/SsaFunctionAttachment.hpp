@@ -5,14 +5,14 @@
 
 namespace tau::ir::ssa {
 
-class SsaFunctionAttachment final : public FunctionAttachment
+class SsaWriterFunctionAttachment final : public FunctionAttachment
 {
-    DEFAULT_CONSTRUCT_PU(SsaFunctionAttachment);
-    DELETE_CM(SsaFunctionAttachment);
-    DEFAULT_DESTRUCT(SsaFunctionAttachment);
-    RTT_IMPL(SsaFunctionAttachment, FunctionAttachment);
+    DEFAULT_CONSTRUCT_PU(SsaWriterFunctionAttachment);
+    DEFAULT_DESTRUCT(SsaWriterFunctionAttachment);
+    DELETE_CM(SsaWriterFunctionAttachment);
+    RTT_IMPL(SsaWriterFunctionAttachment, FunctionAttachment);
 public:
-    SsaFunctionAttachment(SsaWriter&& writer) noexcept
+    SsaWriterFunctionAttachment(SsaWriter&& writer) noexcept
         : m_Writer(::std::move(writer))
     { }
 
@@ -20,6 +20,31 @@ public:
     [[nodiscard]]       SsaWriter& Writer()       noexcept { return m_Writer; }
 private:
     SsaWriter m_Writer;
+};
+
+class SsaFunctionAttachment final : public FunctionAttachment
+{
+    DEFAULT_CONSTRUCT_PU(SsaFunctionAttachment);
+    DEFAULT_DESTRUCT(SsaFunctionAttachment);
+    DELETE_CM(SsaFunctionAttachment);
+    RTT_IMPL(SsaFunctionAttachment, FunctionAttachment);
+public:
+    SsaFunctionAttachment(const u8* const buffer, const uSys bufferSize, const VarId maxVarId, const ::std::vector<SsaCustomType>& varTypeMap) noexcept
+        : m_Buffer(bufferSize)
+        , m_MaxVarId(maxVarId)
+        , m_VarTypeMap(varTypeMap)
+    {
+        m_Buffer.MemCpyAll(buffer);
+    }
+
+    [[nodiscard]] const DynArray<u8>& Buffer() const noexcept { return m_Buffer; }
+    [[nodiscard]] VarId MaxVarId() const noexcept { return m_MaxVarId; }
+    [[nodiscard]] const ::std::vector<SsaCustomType>& VarTypeMap() const noexcept { return m_VarTypeMap; }
+
+private:
+    DynArray<u8> m_Buffer;
+    VarId m_MaxVarId;
+    ::std::vector<SsaCustomType> m_VarTypeMap;
 };
 
 }

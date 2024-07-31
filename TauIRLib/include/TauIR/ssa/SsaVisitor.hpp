@@ -51,14 +51,25 @@ public:
 
     bool Traverse(const Function* const function) noexcept
     {
-        const SsaFunctionAttachment* ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
-
-        if(!ssaAttachment)
         {
-            return false;
+            const SsaWriterFunctionAttachment* ssaWriterAttachment = function->FindAttachment<SsaWriterFunctionAttachment>();
+
+            if(ssaWriterAttachment)
+            {
+                return Traverse(ssaWriterAttachment->Writer().Buffer(), ssaWriterAttachment->Writer().Size(), ssaWriterAttachment->Writer().IdIndex());
+            }
         }
 
-        return Traverse(ssaAttachment->Writer().Buffer(), ssaAttachment->Writer().Size(), ssaAttachment->Writer().IdIndex());
+        {
+            const SsaFunctionAttachment* ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+            if(ssaAttachment)
+            {
+                return Traverse(ssaAttachment->Buffer(), ssaAttachment->Buffer().Size(), ssaAttachment->MaxVarId());
+            }
+        }
+
+        return false;
     }
 protected:
     // ReSharper disable once CppHiddenFunction

@@ -289,11 +289,11 @@ public:
     {
         if(m_Attachment)
         {
-            m_Attachment->Attach(new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...));
+            m_Attachment->Attach(new(::std::nothrow) T(::std::forward<Args>(args)...));
         }
         else
         {
-            m_Attachment = new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...);
+            m_Attachment = new(::std::nothrow) T(::std::forward<Args>(args)...);
         }
     }
 
@@ -313,6 +313,7 @@ public:
             if(rtt_check<T>(curr))
             {
                 *prev = curr->Next();
+                curr->Next() = nullptr;
                 delete curr;
                 return;
             }
@@ -633,7 +634,7 @@ public:
     template<typename T, typename... Args>
     FunctionBuilder& Attachment(Args&&... args) noexcept
     {
-        m_Attachment = new(::std::nothrow) T(TauAllocatorUtils::Forward<Args>(args)...);
+        m_Attachment = new(::std::nothrow) T(::std::forward<Args>(args)...);
         return *this;
     }
 
@@ -645,6 +646,21 @@ public:
 
     Function* Build() noexcept
     {
+        if(!m_LocalTypes)
+        {
+            m_LocalTypes = ::new(m_LocalTypesRaw) DynArray<const TypeInfo*>();
+        }
+
+        if(!m_LocalOffsets)
+        {
+            m_LocalOffsets = ::new(m_LocalOffsetsRaw) DynArray<uSys>();
+        }
+
+        if(!m_Arguments)
+        {
+            m_Arguments = ::new(m_ArgumentsRaw) DynArray<FunctionArgument>();
+        }
+
         Function* ret = new Function(
             m_Address,
             m_CodeSize,

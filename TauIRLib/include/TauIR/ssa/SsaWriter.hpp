@@ -15,6 +15,8 @@ class SsaWriter
 {
     DELETE_COPY(SsaWriter);
 public:
+    using VarTypeMapType = ::std::vector<SsaCustomType>;
+public:
     SsaWriter(uSys initialBufferSize = 64) noexcept;
     ~SsaWriter() noexcept;
 
@@ -42,10 +44,12 @@ public:
     VarId WriteCompVtoV(CompareCondition condition, SsaCustomType type, VarId a, VarId b) noexcept;
     VarId WriteCompVtoI(CompareCondition condition, SsaCustomType type, const void* aValue, uSys aSize, VarId b) noexcept;
     VarId WriteCompItoV(CompareCondition condition, SsaCustomType type, VarId a, const void* bValue, uSys bSize) noexcept;
+    void WriteBranch(VarId label) noexcept;
+    void WriteBranchCond(VarId labelTrue, VarId labelFalse, VarId conditionVar) noexcept;
     VarId WriteCall(u32 function, u32 baseIndex, u32 parameterCount) noexcept;
     VarId WriteCallExt(u32 function, u32 baseIndex, u32 parameterCount, u16 module) noexcept;
-    VarId WriteCallInd(u32 functionPointer, u32 baseIndex, u32 parameterCount) noexcept;
-    VarId WriteCallIndExt(u32 functionPointer, u32 baseIndex, u32 parameterCount, u32 modulePointer) noexcept;
+    VarId WriteCallInd(VarId functionPointer, VarId baseIndex, u32 parameterCount) noexcept;
+    VarId WriteCallIndExt(VarId functionPointer, VarId baseIndex, u32 parameterCount, VarId modulePointer) noexcept;
     void WriteRet(SsaCustomType returnType, VarId var) noexcept;
 
     [[nodiscard]] SsaCustomType GetVarType(const VarId var) const noexcept { return m_VarTypeMap[var]; }
@@ -53,6 +57,7 @@ public:
     [[nodiscard]] const u8* Buffer() const noexcept { return m_Buffer; }
     [[nodiscard]] uSys Size() const noexcept { return m_WriteIndex; }
     [[nodiscard]] VarId IdIndex() const noexcept { return m_IdIndex; }
+    [[nodiscard]] const VarTypeMapType& VarTypeMap() const noexcept { return m_VarTypeMap; }
 private:
     void EnsureSize(uSys additionalSize) noexcept;
     
@@ -71,7 +76,7 @@ private:
     uSys m_BufferSize;
     uSys m_WriteIndex;
     VarId m_IdIndex;
-    ::std::vector<SsaCustomType> m_VarTypeMap;
+    VarTypeMapType m_VarTypeMap;
 };
 
 /**

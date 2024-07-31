@@ -11,6 +11,8 @@ class Module;
 
 class Emulator
 {
+    DEFAULT_DESTRUCT(Emulator);
+    DELETE_CM(Emulator);
 public:
     using ArgumentRegisterType = u64;
     

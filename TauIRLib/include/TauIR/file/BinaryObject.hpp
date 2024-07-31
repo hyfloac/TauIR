@@ -1,10 +1,10 @@
 #pragma once
 
+#include <StringFormat.GlobalHandlers.hpp>
 #include <NumTypes.hpp>
 #include <String.hpp>
 #include <cstdio>
 #include <unordered_map>
-#include <ConPrinter.hpp>
 
 namespace tau::ir {
 
@@ -64,6 +64,13 @@ inline constexpr C8ConstExprString GlobalsSectionName(u8".globals");
 inline constexpr C8ConstExprString FunctionsSectionName(u8".functions");
 inline constexpr C8ConstExprString CodeSectionName(u8".code");
 
+/**
+ * \brief An old trick for having an array after the structure, without having to do some reinterpret_cast pointer magic.
+ * This can be done in C with an undefined size or 0, but C++ requires at least a size of 1.
+ * https://stackoverflow.com/questions/3350852/how-to-correctly-fix-zero-sized-array-in-struct-union-warning-c4200-without
+ */
+inline constexpr uSys PostStructArraySize = 1;
+
 #pragma pack(push, 1)
 struct FileHeader final
 {
@@ -93,10 +100,14 @@ struct SectionMapping final
 
 struct SectionHeader final
 {
+    DEFAULT_CONSTRUCT_PU(SectionHeader);
+    DEFAULT_DESTRUCT(SectionHeader);
+    DELETE_CM(SectionHeader);
+
     // The number of sections.
     u16 SectionCount;
     // A flexible array of the mappings.
-    SectionMapping Mappings[];
+    SectionMapping Mappings[PostStructArraySize];
 };
 
 using StringSectionMap = ::std::unordered_map<u64, C8DynString>;
@@ -136,45 +147,70 @@ struct FunctionPort final
 
 struct ModuleImport final
 {
+    DEFAULT_CONSTRUCT_PU(ModuleImport);
+    DEFAULT_DESTRUCT(ModuleImport);
+    DELETE_CM(ModuleImport);
+
     u64 ModuleNamePointer;
     u32 ImportCount;
-    FunctionPort Functions[];
+    FunctionPort Functions[PostStructArraySize];
 };
 
 struct ImportsSection final
 {
+    DEFAULT_CONSTRUCT_PU(ImportsSection);
+    DEFAULT_DESTRUCT(ImportsSection);
+    DELETE_CM(ImportsSection);
+
     u16 ModuleCount;
-    ModuleImport* Modules[];
+    ModuleImport* Modules[PostStructArraySize];
 };
 
 struct ExportsSection final
 {
+    DEFAULT_CONSTRUCT_PU(ExportsSection);
+    DEFAULT_DESTRUCT(ExportsSection);
+    DELETE_CM(ExportsSection);
+
     u32 FunctionCount;
-    FunctionPort Functions[];
+    FunctionPort Functions[PostStructArraySize];
 };
 
 struct TypeData final
 {
     u64 TypeNamePointer;
     u32 TypeSize;
+    u32 ChainTypeIndex;
 };
 
 struct TypesSection final
 {
+    DEFAULT_CONSTRUCT_PU(TypesSection);
+    DEFAULT_DESTRUCT(TypesSection);
+    DELETE_CM(TypesSection);
+
     u32 TypeCount;
-    TypeData Types[];
+    TypeData Types[PostStructArraySize];
 };
 
 struct GlobalsSection final
 {
+    DEFAULT_CONSTRUCT_PU(GlobalsSection);
+    DEFAULT_DESTRUCT(GlobalsSection);
+    DELETE_CM(GlobalsSection);
+
     u32 GlobalCount;
-    u32 GlobalTypeIndexes[];
+    u32 GlobalTypeIndexes[PostStructArraySize];
 };
 
 struct FunctionLocals final
 {
+    DEFAULT_CONSTRUCT_PU(FunctionLocals);
+    DEFAULT_DESTRUCT(FunctionLocals);
+    DELETE_CM(FunctionLocals);
+
     u16 LocalCount;
-    u32 LocalTypeIndexes[];
+    u32 LocalTypeIndexes[PostStructArraySize];
 };
 
 struct FunctionArgument final
@@ -186,7 +222,7 @@ struct FunctionArgument final
 struct FunctionArguments final
 {
     u16 ArgumentCount;
-    FunctionArgument Arguments[];
+    FunctionArgument Arguments[PostStructArraySize];
 };
 
 struct FunctionMetadata final
@@ -205,8 +241,12 @@ struct FunctionMetadata final
 
 struct FunctionsSection final
 {
+    DEFAULT_CONSTRUCT_PU(FunctionsSection);
+    DEFAULT_DESTRUCT(FunctionsSection);
+    DELETE_CM(FunctionsSection);
+
     u32 FunctionCount;
-    FunctionMetadata Functions[];
+    FunctionMetadata Functions[PostStructArraySize];
 };
 
 struct CodeSection final
@@ -248,20 +288,39 @@ void WriteFinal(FILE* file, i64 zeroPointer) noexcept;
 }
 
 
-namespace ConPrinter {
+namespace FormatContext {
 
-inline u32 Print(const ::tau::ir::file::FileVersion d) noexcept { return Print(u8"{}.{}.{}", d.MajorVersion, d.MinorVersion, d.PatchVersion); }
+template<typename Context>
+inline u32 Handler(Context& ctx, const ::tau::ir::file::FileVersion d) noexcept
+{
+    // u32 ret = 0;
+    // ret += ctx.Handler(d.MajorVersion);
+    // ret += ctx.Handler(u8'.');
+    // ret += ctx.Handler(d.MinorVersion);
+    // ret += ctx.Handler(u8'.');
+    // ret += ctx.Handler(d.PatchVersion);
+    // return ret;
+    return ctx.Handler(u8"{}.{}.{}", d.MajorVersion, d.MinorVersion, d.PatchVersion);
+}
 
-inline u32 Print(const ::tau::ir::file::v0_0::FileHeader* fileHeader) noexcept
+template<typename Context>
+inline u32 Handler(Context& ctx, const ::tau::ir::file::v0_0::FileHeader* fileHeader) noexcept
 {
     u32 ret = 0;
-    ret += ConPrinter::PrintLn("File Header:");
-    ret += ConPrinter::PrintLn("    Magic: {}{}{}{}", static_cast<c8>(fileHeader->Magic[0]), static_cast<c8>(fileHeader->Magic[1]), static_cast<c8>(fileHeader->Magic[2]), static_cast<c8>(fileHeader->Magic[3]));
-    ret += ConPrinter::PrintLn("    Version: {}", ::tau::ir::file::BreakFileVersion(fileHeader->Version));
-    ret += ConPrinter::PrintLn("    File Size: {}", fileHeader->FileSize);
-    ret += ConPrinter::PrintLn("    Checksum: {XP}", fileHeader->Checksum);
-    ret += ConPrinter::PrintLn("    Zero Pointer: {}", fileHeader->ZeroPointer);
-    ret += ConPrinter::PrintLn("    Section Header Pointer: {}", fileHeader->SectionHeaderPointer);
+    // ret += ConPrinter::PrintLn(u8"File Header:");
+    // ret += ConPrinter::PrintLn(u8"    Magic: {}{}{}{}", static_cast<c8>(fileHeader->Magic[0]), static_cast<c8>(fileHeader->Magic[1]), static_cast<c8>(fileHeader->Magic[2]), static_cast<c8>(fileHeader->Magic[3]));
+    // ret += ConPrinter::PrintLn(u8"    Version: {}", ::tau::ir::file::BreakFileVersion(fileHeader->Version));
+    // ret += ConPrinter::PrintLn(u8"    File Size: {}", fileHeader->FileSize);
+    // ret += ConPrinter::PrintLn(u8"    Checksum: {XP}", fileHeader->Checksum);
+    // ret += ConPrinter::PrintLn(u8"    Zero Pointer: {}", fileHeader->ZeroPointer);
+    // ret += ConPrinter::PrintLn(u8"    Section Header Pointer: {}", fileHeader->SectionHeaderPointer);
+    ret += ctx.Handler(u8"File Header:");
+    ret += ctx.Handler(u8"    Magic: {}{}{}{}", static_cast<c8>(fileHeader->Magic[0]), static_cast<c8>(fileHeader->Magic[1]), static_cast<c8>(fileHeader->Magic[2]), static_cast<c8>(fileHeader->Magic[3]));
+    ret += ctx.Handler(u8"    Version: {}", ::tau::ir::file::BreakFileVersion(fileHeader->Version));
+    ret += ctx.Handler(u8"    File Size: {}", fileHeader->FileSize);
+    ret += ctx.Handler(u8"    Checksum: {XP}", fileHeader->Checksum);
+    ret += ctx.Handler(u8"    Zero Pointer: {}", fileHeader->ZeroPointer);
+    ret += ctx.Handler(u8"    Section Header Pointer: {}", fileHeader->SectionHeaderPointer);
     return ret;
 }
 

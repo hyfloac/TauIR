@@ -12,6 +12,7 @@
 #include "TauIR/ssa/SsaTypes.hpp"
 #include "TauIR/ssa/opto/ConstantProp.hpp"
 #include "TauIR/ssa/opto/DeadCodeElimination.hpp"
+#include "TauIR/ssa/opto/Inliner.hpp"
 
 static void TestSsa() noexcept;
 static void TestIrToSsa() noexcept;
@@ -40,6 +41,8 @@ int main(int argCount, char* args[])
 
 static void TestSsa() noexcept
 {
+    using namespace tau::ir::ssa;
+
     ConPrinter::PrintLn();
     ConPrinter::PrintLn("Test SSA:");
 
@@ -53,16 +56,60 @@ static void TestSsa() noexcept
         0x37, 0x08, 0x04, 0x03, 0x00, 0x00, 0x00,                               // u32 %6 = RCast u32 %3
         0x33, 0x09, 0x08, 0x06, 0x00, 0x00, 0x00,                               // u64 %7 = Expand.ZX u32 %6
         0x50, 0x05, 0x09, 0x07, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x80,       // u64 %8 = %7 << %a2
+        0x46, 0x09, 0x08, 0x00, 0x00, 0x00                                      // Ret u64 %8
     };
 
-    const tau::ir::ssa::SsaCustomTypeRegistry registry;
+    const SsaCustomTypeRegistry registry;
 
-    tau::ir::ssa::DumpSsa(code0, sizeof(code0), 0, registry);
+    DumpSsa(code0, sizeof(code0), 0, registry);
 
-    tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
-    visitor.Traverse(code0, sizeof(code0), 8);
+    ConPrinter::PrintLn();
 
-    tau::ir::ssa::DumpSsa(visitor.Writer().Buffer(), visitor.Writer().Size(), 0, registry);
+    ::std::vector<SsaCustomType> customTypes;
+    customTypes.emplace_back(SsaType::I32);
+    customTypes.emplace_back(SsaType::I32);
+    customTypes.emplace_back(SsaType::I32);
+    customTypes.emplace_back(SetPointer(SsaType::Void, true));
+    customTypes.emplace_back(SetPointer(SsaType::I32, true));
+    customTypes.emplace_back(SsaType::U32);
+    customTypes.emplace_back(SsaType::U64);
+    customTypes.emplace_back(SsaType::U64);
+
+    tau::ir::FunctionBuilder funcBuilder;
+    funcBuilder.Attachment<SsaFunctionAttachment>(code0, ::std::size(code0), 8, customTypes);
+
+    tau::ir::Function* func = funcBuilder.Build();
+
+        // Constant Prop
+    {
+        tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+        visitor.Traverse(func);
+        visitor.UpdateAttachment(func);
+
+        tau::ir::ssa::DumpSsa(func, 0, registry);
+    }
+
+    ConPrinter::PrintLn();
+
+    // Usage Analysis
+    {
+        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+        visitor.Traverse(func);
+        visitor.UpdateAttachment(func);
+
+        tau::ir::ssa::DumpSsa(func, 0, registry);
+    }
+
+    ConPrinter::PrintLn();
+
+    // Dead Code Elimination
+    {
+        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, func);
+        visitor.Traverse(func);
+        visitor.UpdateAttachment(func);
+
+        tau::ir::ssa::DumpSsa(func, 0, registry);
+    }
 
     ConPrinter::PrintLn();
 }
@@ -138,10 +185,68 @@ static void TestIrToSsa() noexcept
 
     tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
     tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+    ConPrinter::PrintLn();
 
-    // Constant Prop
+    const auto optoPass = [&]() {
+        // Constant Prop
+        {
+            tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
+
+            tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+        }
+
+        {
+            tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+
+            tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+        }
+
+        ConPrinter::PrintLn();
+
+        // Usage Analysis
+        {
+            tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
+        }
+
+        {
+            tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+        }
+
+        ConPrinter::PrintLn();
+
+        // Dead Code Elimination
+        {
+            tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
+
+            tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+        }
+
+        {
+            tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+
+            tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+        }
+
+        ConPrinter::PrintLn();
+    };
+
+    optoPass();
+
+    // Inline
     {
-        tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+        tau::ir::ssa::opto::InlinerVisitor visitor(registry, mainModule);
         visitor.Traverse(mainFunc);
         visitor.UpdateAttachment(mainFunc);
 
@@ -149,44 +254,16 @@ static void TestIrToSsa() noexcept
     }
 
     {
-        tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+        tau::ir::ssa::opto::InlinerVisitor visitor(registry, mainModule);
         visitor.Traverse(squareFunc);
         visitor.UpdateAttachment(squareFunc);
 
-        tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
-    }
-
-    // Usage Analysis
-    {
-        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
-        visitor.Traverse(mainFunc);
-        visitor.UpdateAttachment(mainFunc);
-    }
-    
-    {
-        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
-        visitor.Traverse(squareFunc);
-        visitor.UpdateAttachment(squareFunc);
-    }
-    
-    // Dead Code Elimination
-    {
-        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
-        visitor.Traverse(mainFunc);
-        visitor.UpdateAttachment(mainFunc);
-    
-        tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
-    }
-    
-    {
-        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
-        visitor.Traverse(squareFunc);
-        visitor.UpdateAttachment(squareFunc);
-    
         tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
     }
 
     ConPrinter::PrintLn();
+
+    optoPass();
 }
 
 static void TestIrToSsaCallInd() noexcept
@@ -195,6 +272,7 @@ static void TestIrToSsaCallInd() noexcept
     ConPrinter::PrintLn("Test IR to SSA Call Ind:");
 
     using namespace tau::ir;
+    using namespace tau::ir::ssa;
 
     const u8 codeSquare[] = {
         0x30,   // Push.Arg.0
@@ -229,7 +307,7 @@ static void TestIrToSsaCallInd() noexcept
     ConPrinter::PrintLn("Square Mangled Name: {}", squareMangledName);
 
     DynArray<const TypeInfo*> mainLocalTypes(1);
-    mainLocalTypes[0] = new TypeInfo(4, TypeInfoFlags::Function(), squareMangledName);
+    mainLocalTypes[0] = TypeInfo::Builder().Size(4).Flags(TypeInfoFlags::Function()).Name(squareMangledName).Build();
 
     Function* const mainFunc = FunctionBuilder()
         .Code(codeMain)
@@ -250,7 +328,7 @@ static void TestIrToSsaCallInd() noexcept
     functions[0] = mainFunc;
     functions[1] = squareFunc;
 
-    ModuleRef mainModule = ModuleBuilder()
+    const ModuleRef mainModule = ModuleBuilder()
         .Functions(::std::move(functions))
         .Exports()
         .Imports()
@@ -258,21 +336,78 @@ static void TestIrToSsaCallInd() noexcept
         .Name(u8"Main")
         .Build();
 
-    ::tau::ir::DumpFunction(mainFunc, 0, mainModule, 0);
+    DumpFunction(mainFunc, 0, mainModule, 0);
     ConPrinter::PrintLn();
-    ::tau::ir::DumpFunction(squareFunc, 1, mainModule, 0);
+    DumpFunction(squareFunc, 1, mainModule, 0);
     ConPrinter::PrintLn();
 
-    const tau::ir::ssa::SsaCustomTypeRegistry registry;
-    tau::ir::IrToSsa::TransformFunction(mainFunc, mainModule, 0);
-    tau::ir::IrToSsa::TransformFunction(squareFunc, mainModule, 0);
+    const SsaCustomTypeRegistry registry;
+    IrToSsa::TransformFunction(mainFunc, mainModule, 0);
+    IrToSsa::TransformFunction(squareFunc, mainModule, 0);
 
-    tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
-    tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+    DumpSsa(mainFunc, 0, registry);
+    DumpSsa(squareFunc, 1, registry);
+    ConPrinter::PrintLn();
+    const auto optoPass = [&]() {
+        // Constant Prop
+        {
+            tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
 
-    // Constant Prop
+            tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+        }
+
+        {
+            tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+
+            tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+        }
+
+        ConPrinter::PrintLn();
+
+        // Usage Analysis
+        {
+            tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
+        }
+
+        {
+            tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+        }
+
+        ConPrinter::PrintLn();
+
+        // Dead Code Elimination
+        {
+            tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
+            visitor.Traverse(mainFunc);
+            visitor.UpdateAttachment(mainFunc);
+
+            tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
+        }
+
+        {
+            tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
+            visitor.Traverse(squareFunc);
+            visitor.UpdateAttachment(squareFunc);
+
+            tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
+        }
+
+        ConPrinter::PrintLn();
+    };
+
+    optoPass();
+
+    // Inline
     {
-        tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
+        tau::ir::ssa::opto::InlinerVisitor visitor(registry, mainModule);
         visitor.Traverse(mainFunc);
         visitor.UpdateAttachment(mainFunc);
 
@@ -280,37 +415,7 @@ static void TestIrToSsaCallInd() noexcept
     }
 
     {
-        tau::ir::ssa::opto::ConstantPropVisitor visitor(registry);
-        visitor.Traverse(squareFunc);
-        visitor.UpdateAttachment(squareFunc);
-
-        tau::ir::ssa::DumpSsa(squareFunc, 1, registry);
-    }
-
-    // Usage Analysis
-    {
-        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
-        visitor.Traverse(mainFunc);
-        visitor.UpdateAttachment(mainFunc);
-    }
-
-    {
-        tau::ir::ssa::opto::UsageAnalyzerVisitor visitor(registry);
-        visitor.Traverse(squareFunc);
-        visitor.UpdateAttachment(squareFunc);
-    }
-
-    // Dead Code Elimination
-    {
-        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, mainFunc);
-        visitor.Traverse(mainFunc);
-        visitor.UpdateAttachment(mainFunc);
-
-        tau::ir::ssa::DumpSsa(mainFunc, 0, registry);
-    }
-
-    {
-        tau::ir::ssa::opto::DeadCodeEliminationVisitor visitor(registry, squareFunc);
+        tau::ir::ssa::opto::InlinerVisitor visitor(registry, mainModule);
         visitor.Traverse(squareFunc);
         visitor.UpdateAttachment(squareFunc);
 
@@ -318,6 +423,8 @@ static void TestIrToSsaCallInd() noexcept
     }
 
     ConPrinter::PrintLn();
+
+    optoPass();
 }
 
 static void TestCall() noexcept
@@ -435,7 +542,7 @@ static void TestCallInd() noexcept
         ConPrinter::PrintLn("Square Mangled Name: {}", squareMangledName);
         
         DynArray<const TypeInfo*> mainLocalTypes(1);
-        mainLocalTypes[0] = new TypeInfo(4, TypeInfoFlags::Function(), squareMangledName);
+        mainLocalTypes[0] = TypeInfo::Builder().Size(4).Flags(TypeInfoFlags::Function()).Name(squareMangledName).Build();
 
         functions[0] = FunctionBuilder()
             .Code(codeMain)
@@ -443,7 +550,7 @@ static void TestCallInd() noexcept
             .Arguments()
             .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
             .Name(u8"Main")
-            .Build();;
+            .Build();
         functions[1] = FunctionBuilder()
             .Code(codeSquare)
             .LocalTypes()
@@ -570,7 +677,7 @@ static void TestCond() noexcept
         0x80, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Call.Ext <0:NativePrintSuccess>
         0x1E, 0x08, 0x00, 0x00, 0x00,                   // Jump .ret
                                                         // .isGreater:
-        0x80, 0x1C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, //   Call.Ext <0:NativePrintFail>
+        0x80, 0x1C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, //   Call.Ext <1:NativePrintFail>
                                                         // .ret
         0x1D                                            //   Ret
     };
@@ -581,12 +688,12 @@ static void TestCond() noexcept
             .Func(NativePrintSuccess)
             .Arguments()
             .Name(u8"NativePrintSuccess")
-            .Build();;
+            .Build();
         nativeFunctions[1] = FunctionBuilder()
             .Func(NativePrintFail)
             .Arguments()
             .Name(u8"NativePrintFail")
-            .Build();;
+            .Build();
     }
 
     FunctionList functions(1);
@@ -597,7 +704,7 @@ static void TestCond() noexcept
             .Arguments()
             .Flags(InlineControl::NoInline, CallingConvention::Default, OptimizationControl::Default, false)
             .Name(u8"Main")
-            .Build();;
+            .Build();
     }
 
     ModuleRef nativeModule = ModuleBuilder()
@@ -665,7 +772,7 @@ static void TestWriteFile() noexcept
 
     u64 stringPointers[::std::size(strings)];
 
-    const i64 stringSectionPointer = WriteStringSection(file, zeroPointer, strings, ::std::size(strings), stringPointers);
+    const i64 stringSectionPointer = WriteStringSection(file, zeroPointer, strings, static_cast<u32>(::std::size(strings)), stringPointers);
     
     u64 sectionNames[5];
     sectionNames[0] = stringPointers[1];
@@ -676,7 +783,7 @@ static void TestWriteFile() noexcept
     
     u64 sectionPointers[5];
     
-    (void) WriteSectionHeader(file, zeroPointer, stringSectionPointer, stringPointers[0], sectionNames, ::std::size(sectionNames), sectionPointers);
+    (void) WriteSectionHeader(file, zeroPointer, stringSectionPointer, stringPointers[0], sectionNames, static_cast<u16>(::std::size(sectionNames)), sectionPointers);
     
     {
         ModuleInfoSection moduleInfo;

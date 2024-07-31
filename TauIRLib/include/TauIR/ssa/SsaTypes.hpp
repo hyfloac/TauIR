@@ -33,6 +33,7 @@ enum class SsaType : u8
     F32    = 0x0B,
     F64    = 0x0C,
     Char   = 0x0D,
+    Label  = 0x7D,
     Bytes  = 0x7E,
     Custom = 0x7F
 };
@@ -59,7 +60,8 @@ constexpr static inline bool IsPointer(const SsaType type) noexcept
 
 constexpr static inline uSys TypeValueSize(const SsaType type)
 {
-    if(IsPointer(type))
+    // Labels are internally represented as byte pointer.
+    if(IsPointer(type) || type == SsaType::Label)
     {
         return 8;
     }
@@ -86,7 +88,7 @@ constexpr static inline uSys TypeValueSize(const SsaType type)
 
 struct SsaCustomType final
 {
-    DEFAULT_CONSTRUCT_PU(SsaCustomType);
+    DEFAULT_CONSTRUCT_PUC(SsaCustomType);
     DEFAULT_DESTRUCT(SsaCustomType);
     DEFAULT_CM_PU(SsaCustomType);
 public:

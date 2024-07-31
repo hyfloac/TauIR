@@ -71,7 +71,7 @@ static inline T RotateLeft(const T n, T c)
 	const T mask = (CHAR_BIT * sizeof(n) - 1);  // assumes width is a power of 2.
 	
 	c &= mask;
-	return static_cast<T>((n << c) | (n >> ((-c) & mask)));
+	return static_cast<T>((n << c) | (n >> (static_cast<T>(-static_cast<::std::make_signed_t<T>>(c)) & mask)));
 }
 
 template<typename T>
@@ -80,7 +80,7 @@ static inline T RotateRight(const T n, T c)
 	const T mask = (CHAR_BIT * sizeof(n) - 1);
 	
 	c &= mask;
-	return static_cast<T>((n >> c) | (n << ((-c) & mask)));
+	return static_cast<T>((n >> c) | (n << (static_cast<T>(-static_cast<::std::make_signed_t<T>>(c)) & mask)));
 }
 
 }
@@ -99,11 +99,23 @@ public:
 
 	void UpdateAttachment(Function* const function) noexcept
 	{
-        SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
-
-		if(ssaAttachment)
 		{
-			ssaAttachment->Writer() = ::std::move(m_Writer);
+			SsaWriterFunctionAttachment* const ssaWriterAttachment = function->FindAttachment<SsaWriterFunctionAttachment>();
+
+			if(ssaWriterAttachment)
+			{
+				ssaWriterAttachment->Writer() = ::std::move(m_Writer);
+			}
+		}
+
+		{
+			const SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+			if(ssaAttachment)
+			{
+				function->RemoveAttachment<SsaFunctionAttachment>();
+				function->Attach<SsaFunctionAttachment>(m_Writer.Buffer(), m_Writer.Size(), m_Writer.IdIndex(), m_Writer.VarTypeMap());
+			}
 		}
 	}
 public:
@@ -775,7 +787,7 @@ public:
 
 		if(!m_Linkages[functionPointer].IsVar() && !m_Linkages[modulePointer].IsVar())
 		{
-			m_NewVarMap[newVar] = m_Writer.WriteCallExt(*reinterpret_cast<const u32*>(m_Linkages[functionPointer].Value), source, parameterCount, *reinterpret_cast<const u32*>(m_Linkages[modulePointer].Value));
+			m_NewVarMap[newVar] = m_Writer.WriteCallExt(*reinterpret_cast<const u32*>(m_Linkages[functionPointer].Value), source, parameterCount, static_cast<u16>(*reinterpret_cast<const u32*>(m_Linkages[modulePointer].Value)));
 		}
 		else
 		{

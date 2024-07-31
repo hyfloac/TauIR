@@ -40,6 +40,7 @@ static ssa::SsaType GetUnsignedSizeType(const uSys size) noexcept
     }
 }
 
+// ReSharper disable CppHidingFunction
 class IrToSsaVisitor final : public BaseIrVisitor<IrToSsaVisitor>
 {
     DEFAULT_DESTRUCT(IrToSsaVisitor);
@@ -325,7 +326,7 @@ void IrToSsa::TransformFunction(Function* const function, const ModuleRef& modul
     IrToSsaVisitor visitor(function, module, currentModule);
     visitor.Traverse(function->Address(), function->Address() + function->CodeSize());
 
-    function->Attach<ssa::SsaFunctionAttachment>(::std::move(visitor.Writer()));
+    function->Attach<ssa::SsaWriterFunctionAttachment>(::std::move(visitor.Writer()));
 }
     
 IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker, const uSys size, const ssa::SsaType ssaType)
@@ -346,9 +347,9 @@ IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker,
         // The max number of elements we can reasonably expect to show up in a single merge-pop. This will be the source of many buffer overflow exploits.
         constexpr uSys packSize = 16;
 
-        // Setup a buffer of types for the join.
+        // Set up a buffer of types for the join.
         ssa::SsaCustomType types[packSize];
-        // Setup a buffer of vars for the join.
+        // Set up a buffer of vars for the join.
         VarId vars[packSize];
 
         // The current buffer write index. We will write in reverse order to prevent having to do an array reverse later.
@@ -380,7 +381,7 @@ IrToSsa::VarId IrToSsa::PopRaw(SsaWriter& writer, SsaFrameTracker& frameTracker,
         {
             // Find how many bytes spill over the highest byte of local type.
             const u32 sizeSpill = static_cast<u32>(frameSize - size);
-            // Setup an array to split the most recently popped frame into two vars.
+            // Set up an array to split the most recently popped frame into two vars.
             ssa::SsaCustomType splitTypes[2];
             // Set the first split type to be raw bytes with the spill size.
             splitTypes[0] = ssa::SsaCustomType(ssa::SsaType::Bytes, sizeSpill);

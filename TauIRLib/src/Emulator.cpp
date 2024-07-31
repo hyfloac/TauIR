@@ -43,7 +43,7 @@ void Emulator::Executor(const Function* function, const Module* module) noexcept
     PushValueLocal(function);             \
     PushValueLocal(codePtr)
 #define RET_POP() \
-    codePtr = PopValueLocal<const u8*>();          \
+    codePtr = PopValueLocal<const u8*>();         \
     function = PopValueLocal<const Function*>();  \
     module = PopValueLocal<const Module*>();      \
     localsHead = PopValueLocal<uSys>();           \

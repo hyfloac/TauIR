@@ -312,6 +312,22 @@ VarId SsaWriter::WriteCompItoV(const CompareCondition condition, const SsaCustom
     return ++m_IdIndex;
 }
 
+void SsaWriter::WriteBranch(const VarId label) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::Branch) + sizeof(label));
+    WriteOpcode(SsaOpcode::Branch);
+    WriteT(label);
+}
+
+void SsaWriter::WriteBranchCond(const VarId labelTrue, const VarId labelFalse, const VarId conditionVar) noexcept
+{
+    EnsureSize(GetOpCodeSize(SsaOpcode::Branch) + sizeof(labelTrue) + sizeof(labelFalse) + sizeof(conditionVar));
+    WriteOpcode(SsaOpcode::Branch);
+    WriteT(labelTrue);
+    WriteT(labelFalse);
+    WriteT(conditionVar);
+}
+
 VarId SsaWriter::WriteCall(const u32 function, const u32 baseIndex, const u32 parameterCount) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::Call) + 3 * sizeof(u32));
@@ -335,7 +351,7 @@ VarId SsaWriter::WriteCallExt(const u32 function, const u32 baseIndex, const u32
     return ++m_IdIndex;
 }
 
-VarId SsaWriter::WriteCallInd(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount) noexcept
+VarId SsaWriter::WriteCallInd(const VarId functionPointer, const VarId baseIndex, const u32 parameterCount) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::CallInd) + 3 * sizeof(u32));
     WriteOpcode(SsaOpcode::CallInd);
@@ -346,7 +362,7 @@ VarId SsaWriter::WriteCallInd(const u32 functionPointer, const u32 baseIndex, co
     return ++m_IdIndex;
 }
 
-VarId SsaWriter::WriteCallIndExt(const u32 functionPointer, const u32 baseIndex, const u32 parameterCount, const u32 modulePointer) noexcept
+VarId SsaWriter::WriteCallIndExt(const VarId functionPointer, const VarId baseIndex, const u32 parameterCount, const VarId modulePointer) noexcept
 {
     EnsureSize(GetOpCodeSize(SsaOpcode::CallIndExt) + 4 * sizeof(u32));
     WriteOpcode(SsaOpcode::CallIndExt);

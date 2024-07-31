@@ -221,12 +221,24 @@ public:
 
 	void UpdateAttachment(Function* const function) noexcept
 	{
-	    SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+		{
+			SsaWriterFunctionAttachment* const ssaWriterAttachment = function->FindAttachment<SsaWriterFunctionAttachment>();
 
-	    if(ssaAttachment)
-	    {
-	        ssaAttachment->Writer() = ::std::move(m_Writer);
-	    }
+			if(ssaWriterAttachment)
+			{
+				ssaWriterAttachment->Writer() = ::std::move(m_Writer);
+			}
+		}
+
+		{
+			const SsaFunctionAttachment* const ssaAttachment = function->FindAttachment<SsaFunctionAttachment>();
+
+			if(ssaAttachment)
+			{
+				function->RemoveAttachment<SsaFunctionAttachment>();
+				function->Attach<SsaFunctionAttachment>(m_Writer.Buffer(), m_Writer.Size(), m_Writer.IdIndex(), m_Writer.VarTypeMap());
+			}
+		}
 
 		function->RemoveAttachment<UsageAnalysisFunctionAttachment>();
 	}
